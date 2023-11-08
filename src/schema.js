@@ -1,5 +1,6 @@
 // schema.js
 const { GraphQLObjectType, GraphQLList, GraphQLFloat, GraphQLID, GraphQLSchema } = require('graphql');
+const { getDriveInfo } = require('./helpers');
 
 const DriveType = new GraphQLObjectType({
   name: 'Drive',
@@ -16,21 +17,15 @@ const QueryType = new GraphQLObjectType({
   fields: () => ({
     drives: {
       type: new GraphQLList(DriveType),
-      resolve: () => {
-        return [
-          {
-            drive: "D001",
-            capacity: 500,
-            used: 78.6,
-            free: 421.4,
-          },
-          {
-            drive: "D002",
-            capacity: 1024,
-            used: 517.64,
-            free: 506.36,
-          },
-        ];
+      resolve: async () => {
+        const driveInfo = await getDriveInfo();
+        return driveInfo.map(d => ({
+          drive: d.device,
+          capacity: d.size,
+          used: 350000000000,
+          free: 150277793000,
+        }));
+
       },
     },
   }),
