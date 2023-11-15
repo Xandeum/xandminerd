@@ -1,24 +1,70 @@
 const si = require('systeminformation');
 
+// const getDriveInfo = async () => {
+
+//     try {
+//         // const drives = await si.diskLayout()
+//         // console.log("diskLayout>>> ", drives)
+//         // const drives = await si.blockDevices()
+//         // console.log("blockDevices>>> ", drives)
+//         const drives = await si.fsSize()
+//         console.log("fsSize>>> ", drives)
+//         return drives;
+//     } catch (err) {
+//         console.log("error while reading system info>>> ", err)
+//     }
+// }
+
 const getDriveInfo = async () => {
+    let drives = [];
     try {
-        const drives = await si.diskLayout()
-        // console.log("diskLayout>>> ", drives)
-        // const drives = await si.blockDevices()
-        // console.log("blockDevices>>> ", drives)
-        // const drives = await si.fsSize("/")
-        // console.log("fsSize>>> ", drives)
+        const blockDevices = await si.blockDevices();
+        console.log("blockDevices >>> ", blockDevices);
+        if (blockDevices && blockDevices.length > 0) {
+            for (const device of blockDevices) {
+                const fsSize = await si.fsSize(device?.identifier);
+                console.log(`fsSize for device ${device?.identifier} >>> `, fsSize);
+
+                let drive = {
+                    id: device?.uuid,
+                    identifier: device?.identifier,
+                    capacity: device?.size,
+                    mount: device?.mount,
+                    type: device?.type,
+                    device: device?.device,
+                    name: device?.name,
+                    fsUsed: 0,
+                    fsAvailable: 0,
+                    fsSize: 0
+                };
+
+                if (fsSize && fsSize.length > 0) {
+                    const fsInfo = fsSize.find(fs => fs?.fs === drive?.name);
+                    if (fsInfo) {
+                        drive.fsUsed = fsInfo?.used;
+                        drive.fsAvailable = fsInfo?.available;
+                        drive.fsSize = fsInfo?.size;
+                    }
+                }
+
+                drives.push(drive);
+            }
+        }
+
+        console.log("drive list >>> ", drives);
         return drives;
     } catch (err) {
-        console.log("error while reading system info>>> ", err)
+        console.log("error while reading system info >>> ", err);
     }
-}
+};
 
 const { exec } = require('child_process');
 const os = require('os');
 const fs = require('fs');
+const diskusage = require('diskusage');
+const path = require('path');
 
-const getDriveDetails = () => {
+const getDiskSpaceInfo = () => {
     const platform = os.platform();
     if (platform === 'win32') {
         // Windows-specific command
@@ -95,36 +141,4 @@ const getDriveDetails = () => {
     }
 }
 
-async function getDiskSpaceInfo() {
-    // exec('df -k /', (error, stdout) => {
-    //     if (error) {
-    //         console.error(`Error: ${error.message}`);
-    //         return;
-    //     }
-
-    //     const lines = stdout.split('\n')[1].split(/\s+/);
-
-    //     const usedSpaceKB = parseInt(lines[2]);
-    //     const availableSpaceKB = parseInt(lines[3]);
-
-    //     const usedSpaceGB = usedSpaceKB / 1024 / 1024;
-    //     const availableSpaceGB = availableSpaceKB / 1024 / 1024;
-
-    //     console.log(`Used Space: ${usedSpaceGB.toFixed(2)} GB`);
-    //     console.log(`Available Space: ${availableSpaceGB.toFixed(2)} GB`);
-    // });
-
-    try {
-        // const drives = await si.diskLayout()
-        // console.log("diskLayout>>> ", drives)
-        // const drives = await si.blockDevices()
-        // console.log("blockDevices>>> ", drives)
-        const drives = await si.fsSize()
-        // console.log("fsSize>>> ", drives)
-        return drives;
-    } catch (err) {
-        console.log("error while reading system info>>> ", err)
-    }
-}
-
-module.exports = { getDriveInfo, getDriveDetails, getDiskSpaceInfo }
+module.exports = { getDriveInfo, getDiskSpaceInfo }

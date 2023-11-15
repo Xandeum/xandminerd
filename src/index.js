@@ -1,7 +1,7 @@
 const express = require('express');
 const { createHandler } = require('graphql-http/lib/use/express');
 const schema = require('./schema');
-const { getDriveDetails, getDiskSpaceInfo } = require('./helpers');
+const { getDiskSpaceInfo } = require('./helpers');
 
 let cors = require('cors');
 const app = express();
