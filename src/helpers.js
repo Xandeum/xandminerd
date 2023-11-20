@@ -60,12 +60,10 @@ const getDriveInfo = async () => {
 
 const { exec } = require('child_process');
 const os = require('os');
-const fs = require('fs');
-const diskusage = require('diskusage');
-const path = require('path');
 
 const getDiskSpaceInfo = () => {
     const platform = os.platform();
+
     if (platform === 'win32') {
         // Windows-specific command
         exec('wmic logicaldisk get DeviceID,Size,FreeSpace', (error, stdout, stderr) => {
@@ -86,59 +84,86 @@ const getDiskSpaceInfo = () => {
                 console.log('------------------------');
             });
         });
-    } else {
-        // Unix/Linux and macOS-specific command to identify physical drives
-        const mountFile = platform === 'darwin' ? '/etc/mtab' : '/proc/mounts';
-
-        fs.readFile(mountFile, 'utf8', (mountsError, mountsData) => {
-            if (mountsError) {
-                console.error(`Error reading ${mountFile}: ${mountsError.message}`);
+    } else if (platform === 'darwin') {
+        // macOS-specific command
+        exec('diskutil list -plist', (error, stdout, stderr) => {
+            if (error) {
+                console.error(`Error running macOS command: ${error.message}`);
                 return;
             }
 
-            const mounts = mountsData.split('\n');
-            const driveInfo = {};
+            try {
+                const diskInfo = parseDiskutilOutput(stdout);
+                printDiskInfo(diskInfo, 'macOS');
+            } catch (parseError) {
+                console.error(`Error parsing macOS command output: ${parseError.message}`);
+            }
+        });
+    } else {
+        // Linux/Unix-specific command
+        exec('df -P', (error, stdout, stderr) => {
+            if (error) {
+                console.error(`Error running Linux/Unix command: ${error.message}`);
+                return;
+            }
 
-            mounts.forEach(line => {
-                const [filesystem, mountPoint] = line.split(/\s+/);
-                if (filesystem.startsWith('/dev/')) {
-                    const driveName = filesystem.split('/').pop();
-                    driveInfo[driveName] = mountPoint;
-                }
-            });
-
-            // Read partition sizes from /proc/partitions
-            fs.readFile('/proc/partitions', 'utf8', (partitionsError, partitionsData) => {
-                if (partitionsError) {
-                    console.error(`Error reading /proc/partitions: ${partitionsError.message}`);
-                    return;
-                }
-
-                const partitions = partitionsData.split('\n');
-                partitions.shift(); // Remove the header line
-
-                partitions.forEach(partition => {
-                    const [major, minor, blocks, name] = partition.split(/\s+/);
-                    if (driveInfo[name]) {
-                        exec(`df -P ${driveInfo[name]}`, (dfError, dfOutput) => {
-                            if (dfError) {
-                                console.error(`Error running df command: ${dfError.message}`);
-                                return;
-                            }
-
-                            const dfLines = dfOutput.split('\n').filter(Boolean);
-                            const [filesystem, size, used, available, capacity, mountedOn] = dfLines[1].split(/\s+/);
-                            console.log('Filesystem:', filesystem);
-                            console.log('Size:', size, 'bytes');
-                            console.log('Used Space:', used, 'bytes');
-                            console.log('Type: Unix/Linux/macOS');
-                            console.log('------------------------');
-                        });
-                    }
-                });
-            });
+            try {
+                const diskInfo = parseDfOutput(stdout);
+                printDiskInfo(diskInfo, 'Unix/Linux');
+            } catch (parseError) {
+                console.error(`Error parsing Linux/Unix command output: ${parseError.message}`);
+            }
         });
     }
-}
+};
+
+const parseDiskutilOutput = (output) => {
+    const parsedOutput = {};
+    const disks = output.match(/<string>(.*?)<\/string>/g);
+
+    disks.forEach((disk) => {
+        const match = disk.match(/<string>(.*?)<\/string>/);
+        if (match) {
+            const diskName = match[1];
+            parsedOutput[diskName] = { mountPoint: `/Volumes/${diskName}` };
+        }
+    });
+
+    return parsedOutput;
+};
+
+const parseDfOutput = (output) => {
+    const parsedOutput = {};
+    const lines = output.split('\n').filter(Boolean);
+    lines.shift(); // Remove the header line
+
+    lines.forEach(line => {
+        const [filesystem, size, used, available, capacity, mountedOn] = line.split(/\s+/);
+        parsedOutput[filesystem] = { mountPoint: mountedOn };
+    });
+
+    return parsedOutput;
+};
+
+const printDiskInfo = (diskInfo, platform) => {
+    Object.keys(diskInfo).forEach(diskName => {
+        const { mountPoint } = diskInfo[diskName];
+        exec(`df -P ${mountPoint}`, (dfError, dfOutput) => {
+            if (dfError) {
+                console.error(`Error running df command: ${dfError.message}`);
+                return;
+            }
+
+            const dfLines = dfOutput.split('\n').filter(Boolean);
+            const [filesystem, size, used, available, capacity, mountedOn] = dfLines[1].split(/\s+/);
+            console.log('Filesystem:', filesystem);
+            console.log('Size:', size, 'bytes');
+            console.log('Used Space:', used, 'bytes');
+            console.log('Type:', platform);
+            console.log('------------------------');
+        });
+    });
+};
+
 
 module.exports = { getDriveInfo, getDiskSpaceInfo }
