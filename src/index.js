@@ -9,7 +9,7 @@ app.use(cors())
 const port = 4000;
 
 app.post('/drives', createHandler({ schema }));
-app.get('/', (req, res) => {
+app.post('/', (req, res) => {
   getDiskSpaceInfo().then((data) => {
     res.status(200);
     res.send({ data });

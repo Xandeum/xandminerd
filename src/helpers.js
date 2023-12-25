@@ -66,14 +66,14 @@ const getDiskSpaceInfo = async () => {
     try {
         const diskLayout = await si.diskLayout()
         console.log("diskLayout>>> ", diskLayout)
-        // const drives = await si.blockDevices()
-        // console.log("blockDevices>>> ", drives)
+        const blockDevices = await si.blockDevices()
+        console.log("blockDevices>>> ", blockDevices)
         const fsSize = await si.fsSize()
         console.log("fsSize>>> ", fsSize)
 
         const drives = [{ ...diskLayout[0], available: fsSize[fsSize.length - 1]?.available }]
         console.log("drives>>> ", drives)
-        return diskLayout;
+        return drives;
     } catch (err) {
         console.log("error while reading system info>>> ", err)
     }
