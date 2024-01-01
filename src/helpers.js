@@ -1,5 +1,7 @@
 const si = require('systeminformation');
 const os = require('os');
+const axios = require('axios');
+const { exec } = require('child_process');
 
 // const getDriveInfo = async () => {
 // const platform = os.platform(); //win32, darwin
@@ -79,5 +81,56 @@ const getDiskSpaceInfo = async () => {
     }
 };
 
+//test network speed
+const testNetworkSpeed = async () => {
+    // const imageUrl = "https://source.unsplash.com/random?topics=nature";
+    // let startTime, endTime;
+    // let imageSize;
 
-module.exports = { getDriveInfo, getDiskSpaceInfo }
+    // try {
+    //     startTime = new Date().getTime();
+
+    //     const response = await axios.get(imageUrl, { responseType: 'arraybuffer' });
+    //     imageSize = response.headers['content-length'];
+    //     console.log(`Image size: ${imageSize / 1024} KB`);
+
+    //     endTime = new Date().getTime();
+
+    //     const timeDuration = (endTime - startTime) / 1000;
+    //     const loadedBits = imageSize * 8;
+
+    //     const speedInBps = (loadedBits / timeDuration).toFixed(2);
+    //     const speedInKbps = (speedInBps / 1024).toFixed(2);
+    //     const speedInMbps = (speedInKbps / 1024).toFixed(2);
+
+    //     console.log(`${speedInBps} bps`);
+    //     console.log(`${speedInKbps} kbps`);
+    //     console.log(`${speedInMbps} Mbps`);
+
+    //     return { speedInBps, speedInKbps, speedInMbps };
+    // } catch (error) {
+    //     console.error(`Error: ${error.message}`);
+    //     return null;
+    // }
+
+    return new Promise((resolve, reject) => {
+        const command = 'fast --download --json'; // Adjust the command as needed
+
+        exec(command, (error, stdout, stderr) => {
+            if (error) {
+                reject(`Error executing command: ${error.message}`);
+                return;
+            }
+
+            if (stderr) {
+                reject(`Command stderr: ${stderr}`);
+                return;
+            }
+
+            // Resolve the Promise with the output (stdout)
+            resolve(stdout);
+        });
+    });
+}
+
+module.exports = { getDriveInfo, getDiskSpaceInfo, testNetworkSpeed }
