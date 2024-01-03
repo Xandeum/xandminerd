@@ -18,6 +18,7 @@ app.post('/', (req, res) => {
 
 app.get('/network', (req, res) => {
   testNetworkSpeed().then((data) => {
+    console.log("network speed >>> ", data);
     res.status(200);
     res.send({ data: JSON.parse(data) });
   }).catch((err) => {

@@ -83,6 +83,7 @@ const getDiskSpaceInfo = async () => {
 
 //test network speed
 const testNetworkSpeed = async () => {
+    console.log("testNetworkSpeed >>> ");
     // const imageUrl = "https://source.unsplash.com/random?topics=nature";
     // let startTime, endTime;
     // let imageSize;
