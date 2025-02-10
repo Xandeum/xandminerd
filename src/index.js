@@ -12,7 +12,7 @@ app.post('/drives', createHandler({ schema }));
 app.post('/', (req, res) => {
   getDiskSpaceInfo().then((data) => {
     res.status(200);
-    res.send({ data });
+    res.send({ data: { drives: data } });
   });
 });
 
