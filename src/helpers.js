@@ -64,39 +64,11 @@ const getDriveInfo = async () => {
     }
 };
 
-// Function to convert bytes to human-readable format
-function formatBytes(bytes, decimals = 2) {
-    if (bytes === 0) return '0 Bytes';
-    const k = 1024;
-    const dm = decimals < 0 ? 0 : decimals;
-    const sizes = ['Bytes', 'KB', 'MB', 'GB', 'TB', 'PB', 'EB', 'ZB', 'YB'];
-
-    const i = Math.floor(Math.log(bytes) / Math.log(k));
-
-    return parseFloat((bytes / Math.pow(k, i)).toFixed(dm)) + ' ' + sizes[i];
-}
-
 const getDiskSpaceInfo = async () => {
     let drives = [];
     const platform = os.platform(); //win32, darwin
-    // try {
-    //     const diskLayout = await si.diskLayout()
-    //     console.log("diskLayout>>> ", diskLayout)
-    //     const blockDevices = await si.blockDevices()
-    //     console.log("blockDevices>>> ", blockDevices)
-    //     const fsSize = await si.fsSize()
-    //     console.log("fsSize>>> ", fsSize)
 
-    //     const drives = [{ ...diskLayout[0], available: fsSize[fsSize.length - 1]?.available }]
-    //     console.log("drives>>> ", drives)
-    //     return drives;
-    // } catch (err) {
-    //     console.log("error while reading system info>>> ", err)
-    // }
-    console.log('Disk Information:');
     try {
-        console.log('Disk Information:');
-
         if (platform === 'darwin') {
             // Execute 'df' command to get file system information on Unix-like systems
             // const stdout = execSync('df -P -l').toString();
@@ -141,7 +113,6 @@ const getDiskSpaceInfo = async () => {
                 } else {
                     console.log('Unable to retrieve main hard drive information.');
                 }
-                console.log("drive >>> ", drive);
                 drives.push(drive);
             } catch (error) {
                 console.error(`Error executing command: ${error.message}`);
@@ -149,73 +120,65 @@ const getDiskSpaceInfo = async () => {
             return drives;
         } else if (platform === 'linux') {
             // Linux-specific logic
-            const command = 'df -h --output=source,size,used,avail | grep -E "^/dev/"';
+            const command = 'df -h --output=source,size,used,avail,target | grep " /$"';
 
-            exec(command, (error, stdout, stderr) => {
-                if (error) {
-                    console.error(`Error executing command: ${error.message}`);
-                    return;
-                }
+            try {
+                const { stdout, stderr } = await execPromise(command);
+
                 if (stderr) {
                     console.error(`Command error: ${stderr}`);
-                    return;
+                    return drives;
                 }
 
-                // Parse the output for Linux
+                // Parse the output
                 const lines = stdout.trim().split('\n');
-                let mainDriveInfo = null;
+                let drive = {
+                    fsUsed: 0,
+                    available: 0,
+                    capacity: 0
+                };
 
-                lines.forEach((line) => {
-                    const columns = line.split(/\s+/);
+                if (lines.length > 0) {
+                    const columns = lines[0].split(/\s+/);
                     const [filesystem, size, used, avail] = columns;
 
-                    // Focus on the root filesystem ("/") or the first physical drive
-                    if (columns.length >= 4) {
-                        mainDriveInfo = {
-                            drive: filesystem,
-                            total: size,
-                            used: used,
-                            avail: avail,
-                        };
-                    }
-                });
-
-                if (mainDriveInfo) {
-                    console.log('Main Hard Drive Information:');
-                    console.log('---------------------------');
-                    console.log(`Drive: ${mainDriveInfo.drive}`);
-                    console.log(`Total: ${mainDriveInfo.total}`);
-                    console.log(`Used: ${mainDriveInfo.used}`);
-                    console.log(`Available: ${mainDriveInfo.avail}`);
+                    drive.fsUsed = used;
+                    drive.available = avail;
+                    drive.capacity = size;
                 } else {
                     console.log('Unable to retrieve main hard drive information.');
                 }
-            });
+                drives.push(drive);
+            } catch (error) {
+                console.error(`Error executing command: ${error.message}`);
+            }
+            return drives;
         }
 
-        else if (platform === 'win32') {
-            // Execute 'wmic' command to get disk information on Windows
-            const stdout = execSync('wmic logicaldisk get caption,size,freespace').toString();
-            const lines = stdout.split('\r\r\n').filter(line => line.trim() !== '');
+        // else if (platform === 'win32') {
+        //     // Execute 'wmic' command to get disk information on Windows
+        //     const stdout = execSync('wmic logicaldisk get caption,size,freespace').toString();
+        //     const lines = stdout.split('\r\r\n').filter(line => line.trim() !== '');
 
-            lines.forEach((line, index) => {
-                if (index > 0) { // Skip the header
-                    const [caption, size, freespace] = line.trim().split(/\s+/);
+        //     lines.forEach((line, index) => {
+        //         if (index > 0) { // Skip the header
+        //             const [caption, size, freespace] = line.trim().split(/\s+/);
 
-                    console.log(`\nDrive ${index}:`);
-                    console.log(`- Device: ${caption}`);
-                    console.log(`- Type: N/A`);
-                    console.log(`- Size: ${formatBytes(parseInt(size) * 1024)}`);
-                    console.log(`- Interface: N/A`);
+        //             console.log(`\nDrive ${index}:`);
+        //             console.log(`- Device: ${caption}`);
+        //             console.log(`- Type: N/A`);
+        //             console.log(`- Size: ${formatBytes(parseInt(size) * 1024)}`);
+        //             console.log(`- Interface: N/A`);
 
-                    console.log(`\nDrive ${index} (File System):`);
-                    console.log(`- Size: ${formatBytes(parseInt(size) * 1024)}`);
-                    console.log(`- Used: ${formatBytes((parseInt(size) - parseInt(freespace)) * 1024)}`);
-                    console.log(`- Available: ${formatBytes(parseInt(freespace) * 1024)}`);
-                    console.log(`- Capacity: ${((parseInt(size) - parseInt(freespace)) / parseInt(size)).toFixed(2) * 100}%`);
-                }
-            });
-        } else {
+        //             console.log(`\nDrive ${index} (File System):`);
+        //             console.log(`- Size: ${formatBytes(parseInt(size) * 1024)}`);
+        //             console.log(`- Used: ${formatBytes((parseInt(size) - parseInt(freespace)) * 1024)}`);
+        //             console.log(`- Available: ${formatBytes(parseInt(freespace) * 1024)}`);
+        //             console.log(`- Capacity: ${((parseInt(size) - parseInt(freespace)) / parseInt(size)).toFixed(2) * 100}%`);
+        //         }
+        //     });
+        // } 
+        else {
             console.error('Unsupported operating system.');
         }
     } catch (error) {
