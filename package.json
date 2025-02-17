@@ -19,6 +19,7 @@
   },
   "homepage": "https://github.com/Xandeum/nixAgent#readme",
   "dependencies": {
+    "@solana/web3.js": "^1.98.0",
     "axios": "^1.6.3",
     "cors": "^2.8.5",
     "diskusage": "^1.2.0",
