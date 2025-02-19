@@ -13,8 +13,8 @@ const app = express();
 app.use(cors())
 const port = 4000;
 
-app.post('/drives', createHandler({ schema }));
-app.post('/', (req, res) => {
+// app.post('/drives', createHandler({ schema }));
+app.post('/drives', (req, res) => {
   getDiskSpaceInfo().then((data) => {
     res.status(200);
     res.send({ data: { drives: data } });
@@ -48,6 +48,13 @@ app.post('/keypair/generate', (req, res) => {
     // Ensure the directory exists
     ensureDirectoryExists();
 
+    const filePath = path.join(KEYPAIR_DIR, KEYPAIR_FILE_NAME);
+
+    // Check if the file exists
+    if (fs.existsSync(filePath)) {
+      return res.status(400).json({ error: "Keypair file already exist." });
+    }
+
     // Generate a new keypair
     const keypair = Keypair.generate();
 
@@ -58,7 +65,6 @@ app.post('/keypair/generate', (req, res) => {
     };
 
     // Save the keypair to a file
-    const filePath = path.join(KEYPAIR_DIR, KEYPAIR_FILE_NAME);
     fs.writeFileSync(filePath, JSON.stringify(keypairJson, null, 2));
 
     console.log(`Keypair saved to ${filePath}`);
