@@ -3,6 +3,7 @@ const os = require('os');
 const axios = require('axios');
 const { exec } = require('child_process');
 const util = require('util');
+const speedTest = require('speedtest-net');
 const execPromise = util.promisify(exec);
 
 // const getDriveInfo = async () => {
@@ -120,9 +121,10 @@ const getDiskSpaceInfo = async () => {
             return drives;
         } else if (platform === 'linux') {
             // Linux-specific logic using lsblk
-            const command = 'lsblk -o NAME,SIZE,FUSED,FSUSE%,RO,TYPE,MOUNTPOINTS --json';
+            const command = 'lsblk -o NAME,SIZE,FSUSED,FSUSE%,RO,TYPE,MOUNTPOINTS --json';
 
-            (async () => {
+            // Make the function async
+            return (async () => {
                 try {
                     // Execute the command using execPromise
                     const { stdout } = await execPromise(command);
@@ -130,29 +132,25 @@ const getDiskSpaceInfo = async () => {
                     // Parse the JSON output from lsblk
                     const data = JSON.parse(stdout);
 
+                    console.log("data >>> ", data);
+
                     // Filter for block devices that meet the criteria:
                     // 1. Type is 'disk' or 'part'
                     // 2. Size is greater than 10GB
                     // 3. RO (read-only) is 0
-                    const filteredDevices = data.blockdevices
-                        .filter(device => {
-                            // Convert size to bytes for comparison
-                            const sizeInBytes = parseSize(device.size);
-                            return (
-                                (device.type === 'disk' || device.type === 'part') &&
-                                sizeInBytes > 10 * 1024 ** 3 && // Greater than 10GB
-                                device.ro === '0' // Read-only is 0 (write permissions)
-                            );
-                        });
-                    let drive = {
-                        name: '',
-                        fsUsed: 0,
-                        available: 0,
-                        capacity: 0,
-                        type: '',
-                        mountpoints: []
-                    };
+                    const filteredDevices = data.blockdevices.filter(device => {
+                        // Convert size to bytes for comparison
+                        const sizeInBytes = parseSize(device.size);
+                        console.log("size >>> ", sizeInBytes);
+                        console.log("device >>> ", device);
+                        return (
+                            (device.type === 'disk' || device.type === 'part') &&
+                            sizeInBytes > 10 * 1024 ** 3 && // Greater than 10GB
+                            device.ro === false // Read-only is 0 (write permissions)
+                        );
+                    });
 
+                    // const drives = [];
                     if (filteredDevices.length > 0) {
                         console.log('Filtered Hard Drive/Partition Information:');
                         console.log('-----------------------------------------');
@@ -166,22 +164,28 @@ const getDiskSpaceInfo = async () => {
                             console.log(`Mount Points: ${device.mountpoints?.join(', ') || 'N/A'}`);
                             console.log('-----------------------------------------');
 
-                            drive.name = device.name;
-                            drive.fsUsed = device.fused || 0;
-                            drive.available = device.size - (device.fused || 0);
-                            drive.capacity = device.size;
-                            drive.type = device.type;
-                            drive.mountpoints = device.mountpoints;
+                            const drive = {
+                                name: device.name,
+                                fsUsed: device.fused || 0,
+                                available: device.size - (device.fused || 0),
+                                // capacity: device.size,
+                                capacity: parseSize(device.size),
+                                type: device.type,
+                                mountpoints: device.mountpoints,
+                            };
+                            drives.push(drive);
                         });
-                        drives.push(drive);
                     } else {
                         console.log('No disks or partitions found that meet the criteria.');
                     }
+
+                    // Return the populated drives array
+                    return drives;
                 } catch (error) {
                     console.error(`Error executing command: ${error.message}`);
+                    return []; // Return an empty array in case of error
                 }
             })();
-            return drives;
         }
 
         // else if (platform === 'win32') {
@@ -217,47 +221,16 @@ const getDiskSpaceInfo = async () => {
 };
 
 
-
-
-
-const { execSync } = require('child_process');
-
-// Function to convert bytes to human-readable format
-function formatBytes(bytes, decimals = 2) {
-    if (bytes === 0) return '0 Bytes';
-    const k = 1024;
-    const dm = decimals < 0 ? 0 : decimals;
-    const sizes = ['Bytes', 'KB', 'MB', 'GB', 'TB', 'PB', 'EB', 'ZB', 'YB'];
-
-    const i = Math.floor(Math.log(bytes) / Math.log(k));
-
-    return parseFloat((bytes / Math.pow(k, i)).toFixed(dm)) + ' ' + sizes[i];
-}
-
 // Helper function to parse human-readable sizes into bytes
 function parseSize(sizeStr) {
     const match = sizeStr.match(/^([\d.]+)\s*([A-Za-z]+)/);
     if (!match) return 0;
     const value = parseFloat(match[1]);
     const unit = match[2];
-    const units = { B: 1, KB: 1024, MB: 1024 ** 2, GB: 1024 ** 3, TB: 1024 ** 4 };
+    const units = { B: 1, KB: 1024, M: 1024 ** 2, G: 1024 ** 3, TB: 1024 ** 4 };
+    console.log("units >>> ", units)
     return value * (units[unit] || 1);
 }
-
-// Helper function to format bytes into human-readable sizes
-function formatSize(bytes) {
-    const units = ['B', 'KB', 'MB', 'GB', 'TB'];
-    let unitIndex = 0;
-    while (bytes >= 1024 && unitIndex < units.length - 1) {
-        bytes /= 1024;
-        unitIndex++;
-    }
-    return `${bytes.toFixed(1)}${units[unitIndex]}`;
-}
-
-
-
-
 
 //test network speed
 const testNetworkSpeed = async () => {
@@ -315,6 +288,20 @@ const testNetworkSpeed = async () => {
             resolve(stdout);
         });
     });
+
+    // return new Promise((resolve, reject) => {
+    //     const test = speedTest({ maxTime: 5000 }); // Set max time for the test (optional)
+
+    //     test.on('data', (data) => {
+    //         console.log('Speed Test Results:', data);
+    //         resolve(data); // Resolve with the speed test results
+    //     });
+
+    //     test.on('error', (err) => {
+    //         console.error('Speed Test Error:', err);
+    //         reject(err); // Reject if an error occurs
+    //     });
+    // });
 
 }
 

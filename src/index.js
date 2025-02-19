@@ -16,7 +16,7 @@ const port = 4000;
 // app.post('/drives', createHandler({ schema }));
 app.post('/drives', (req, res) => {
   getDiskSpaceInfo().then((data) => {
-    console.log("res >>> ", data)
+    // console.log("res >>> ", data)
     res.status(200);
     res.send({ data: { drives: data } });
   });
