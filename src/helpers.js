@@ -119,39 +119,68 @@ const getDiskSpaceInfo = async () => {
             }
             return drives;
         } else if (platform === 'linux') {
-            // Linux-specific logic
-            const command = 'df -h --output=source,size,used,avail,target | grep " /$"';
+            // Linux-specific logic using lsblk
+            const command = 'lsblk -o NAME,SIZE,FUSED,FSUSE%,RO,TYPE,MOUNTPOINTS --json';
 
-            try {
-                const { stdout, stderr } = await execPromise(command);
+            (async () => {
+                try {
+                    // Execute the command using execPromise
+                    const { stdout } = await execPromise(command);
 
-                if (stderr) {
-                    console.error(`Command error: ${stderr}`);
-                    return drives;
+                    // Parse the JSON output from lsblk
+                    const data = JSON.parse(stdout);
+
+                    // Filter for block devices that meet the criteria:
+                    // 1. Type is 'disk' or 'part'
+                    // 2. Size is greater than 10GB
+                    // 3. RO (read-only) is 0
+                    const filteredDevices = data.blockdevices
+                        .filter(device => {
+                            // Convert size to bytes for comparison
+                            const sizeInBytes = parseSize(device.size);
+                            return (
+                                (device.type === 'disk' || device.type === 'part') &&
+                                sizeInBytes > 10 * 1024 ** 3 && // Greater than 10GB
+                                device.ro === '0' // Read-only is 0 (write permissions)
+                            );
+                        });
+                    let drive = {
+                        name: '',
+                        fsUsed: 0,
+                        available: 0,
+                        capacity: 0,
+                        type: '',
+                        mountpoints: []
+                    };
+
+                    if (filteredDevices.length > 0) {
+                        console.log('Filtered Hard Drive/Partition Information:');
+                        console.log('-----------------------------------------');
+                        filteredDevices.forEach(device => {
+                            console.log(`Drive: /dev/${device.name}`);
+                            console.log(`Total: ${device.size}`);
+                            console.log(`Used: ${device.fused || 'N/A'}`);
+                            console.log(`Usage: ${device.fsuse || 'N/A'}`);
+                            console.log(`Read-Only: ${device.ro === '1' ? 'Yes' : 'No'}`);
+                            console.log(`Type: ${device.type}`);
+                            console.log(`Mount Points: ${device.mountpoints?.join(', ') || 'N/A'}`);
+                            console.log('-----------------------------------------');
+
+                            drive.name = device.name;
+                            drive.fsUsed = device.fused || 0;
+                            drive.available = device.size - (device.fused || 0);
+                            drive.capacity = device.size;
+                            drive.type = device.type;
+                            drive.mountpoints = device.mountpoints;
+                        });
+                        drives.push(drive);
+                    } else {
+                        console.log('No disks or partitions found that meet the criteria.');
+                    }
+                } catch (error) {
+                    console.error(`Error executing command: ${error.message}`);
                 }
-
-                // Parse the output
-                const lines = stdout.trim().split('\n');
-                let drive = {
-                    fsUsed: 0,
-                    available: 0,
-                    capacity: 0
-                };
-
-                if (lines.length > 0) {
-                    const columns = lines[0].split(/\s+/);
-                    const [filesystem, size, used, avail] = columns;
-
-                    drive.fsUsed = used;
-                    drive.available = avail;
-                    drive.capacity = size;
-                } else {
-                    console.log('Unable to retrieve main hard drive information.');
-                }
-                drives.push(drive);
-            } catch (error) {
-                console.error(`Error executing command: ${error.message}`);
-            }
+            })();
             return drives;
         }
 
