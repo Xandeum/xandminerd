@@ -228,7 +228,6 @@ function parseSize(sizeStr) {
     const value = parseFloat(match[1]);
     const unit = match[2];
     const units = { B: 1, KB: 1024, M: 1024 ** 2, G: 1024 ** 3, TB: 1024 ** 4 };
-    console.log("units >>> ", units)
     return value * (units[unit] || 1);
 }
 
