@@ -9,6 +9,7 @@ const { getDiskSpaceInfo, testNetworkSpeed } = require('./helpers');
 
 
 let cors = require('cors');
+const { registerPNode } = require('./transactions');
 const app = express();
 app.use(cors())
 const port = 4000;
@@ -104,6 +105,33 @@ app.get("/keypair", (req, res) => {
     console.error("Error retrieving public key:", error.message);
     res.status(500).json({ error: "Failed to retrieve public key." });
   }
+});
+
+app.post('/pnode', (req, res) => {
+  registerPNode().then((data) => {
+    if (data?.error) {
+      throw new Error(data.error);
+    }
+    res.status(200);
+    res.send({ ok: true, tx: data?.tx });
+  }).catch((err) => {
+    res.status(500);
+    res.send({ err });
+  });
+});
+
+app.get('/pnode', (req, res) => {
+  readPnode().then((data) => {
+    if (data?.error) {
+      res.status(500);
+      res.send({ err: res.error });
+    }
+    res.status(200);
+    res.send({ ok: true, tx: data });
+  }).catch((err) => {
+    res.status(500);
+    res.send({ err });
+  });
 });
 
 app.listen({ port: 4000 });
