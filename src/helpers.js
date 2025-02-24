@@ -40,16 +40,16 @@ const getDriveInfo = async () => {
                     type: device?.type,
                     device: device?.device,
                     name: device?.name,
-                    fsUsed: 0,
-                    fsAvailable: 0,
+                    used: 0,
+                    available: 0,
                     fsSize: 0
                 };
 
                 if (fsSize && fsSize.length > 0) {
                     const fsInfo = fsSize.find(fs => fs?.fs === drive?.name);
                     if (fsInfo) {
-                        drive.fsUsed = fsInfo?.used;
-                        drive.fsAvailable = fsInfo?.available;
+                        drive.used = fsInfo?.used;
+                        drive.available = fsInfo?.available;
                         drive.fsSize = fsInfo?.size;
                     }
                 }
@@ -102,13 +102,13 @@ const getDiskSpaceInfo = async () => {
                 });
 
                 let drive = {
-                    fsUsed: 0,
+                    used: 0,
                     available: 0,
                     capacity: 0
                 };
 
                 if (totalSize && usedSpace && availableSpace) {
-                    drive.fsUsed = usedSpace;
+                    drive.used = usedSpace;
                     drive.available = availableSpace;
                     drive.capacity = totalSize;
                 } else {
@@ -132,46 +132,50 @@ const getDiskSpaceInfo = async () => {
                     // Parse the JSON output from lsblk
                     const data = JSON.parse(stdout);
 
-                    console.log("data >>> ", data);
-
                     // Filter for block devices that meet the criteria:
                     // 1. Type is 'disk' or 'part'
                     // 2. Size is greater than 10GB
-                    // 3. RO (read-only) is 0
+                    // 3. RO (read-only) is false
                     const filteredDevices = data.blockdevices.filter(device => {
                         // Convert size to bytes for comparison
                         const sizeInBytes = parseSize(device.size);
-                        console.log("size >>> ", sizeInBytes);
-                        console.log("device >>> ", device);
                         return (
                             (device.type === 'disk' || device.type === 'part') &&
                             sizeInBytes > 10 * 1024 ** 3 && // Greater than 10GB
-                            device.ro === false // Read-only is 0 (write permissions)
+                            device.ro === false // Read-only is false (write permissions)
                         );
                     });
 
                     // const drives = [];
                     if (filteredDevices.length > 0) {
-                        console.log('Filtered Hard Drive/Partition Information:');
-                        console.log('-----------------------------------------');
+
                         filteredDevices.forEach(device => {
-                            console.log(`Drive: /dev/${device.name}`);
-                            console.log(`Total: ${device.size}`);
-                            console.log(`Used: ${device.fused || 'N/A'}`);
-                            console.log(`Usage: ${device.fsuse || 'N/A'}`);
-                            console.log(`Read-Only: ${device.ro === '1' ? 'Yes' : 'No'}`);
-                            console.log(`Type: ${device.type}`);
-                            console.log(`Mount Points: ${device.mountpoints?.join(', ') || 'N/A'}`);
-                            console.log('-----------------------------------------');
+
+                            if (device?.children?.length > 0) {
+                                device?.children?.forEach(child => {
+                                    const sizeInBytes = parseSize(child.size);
+                                    if (sizeInBytes < 10 * 1024 ** 3) return;
+
+                                    const drive = {
+                                        name: child?.name,
+                                        used: parseSize(child?.fsused || 0) || 0,
+                                        available: parseSize(child?.size) - (parseSize(child?.fsused || 0) || 0),
+                                        capacity: parseSize(child?.size),
+                                        type: child?.type,
+                                        mount: child?.mountpoints,
+                                    };
+                                    drives.push(drive);
+                                });
+                                return;
+                            }
 
                             const drive = {
-                                name: device.name,
-                                fsUsed: device.fused || 0,
-                                available: device.size - (device.fused || 0),
-                                // capacity: device.size,
-                                capacity: parseSize(device.size),
-                                type: device.type,
-                                mountpoints: device.mountpoints,
+                                name: device?.name,
+                                used: device?.fsused || 0,
+                                available: device?.size - (device?.fused || 0),
+                                capacity: parseSize(device?.size),
+                                type: device?.type,
+                                mount: device?.mountpoints,
                             };
                             drives.push(drive);
                         });
@@ -267,7 +271,7 @@ const testNetworkSpeed = async () => {
     console.log("Testing network speed...");
 
     return new Promise((resolve, reject) => {
-        const command = 'fast --upload --json'; // Adjust the command as needed
+        const command = 'fast --upload --json';
 
         exec(command, (error, stdout, stderr) => {
             if (error) {
@@ -283,13 +287,12 @@ const testNetworkSpeed = async () => {
             }
 
             console.log(`Command stdout: ${stdout}`);
-            // Resolve the Promise with the output (stdout)
             resolve(stdout);
         });
     });
 
     // return new Promise((resolve, reject) => {
-    //     const test = speedTest({ maxTime: 5000 }); // Set max time for the test (optional)
+    //     const test = speedTest({ maxTime: 5000 }); 
 
     //     test.on('data', (data) => {
     //         console.log('Speed Test Results:', data);
