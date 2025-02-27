@@ -108,7 +108,10 @@ app.get("/keypair", (req, res) => {
 });
 
 app.post('/pnode', (req, res) => {
-  registerPNode().then((data) => {
+
+  const { pubKey } = req?.body;
+
+  registerPNode(pubKey).then((data) => {
     if (data?.error) {
       throw new Error(data.error);
     }

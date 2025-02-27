@@ -3,11 +3,13 @@ const path = require("path");
 const fs = require("fs");
 
 
-const registerPNode = async () => {
+const registerPNode = async (walletPubKey) => {
 
     const KEYPAIR_DIR = "./keypairs";
     const KEYPAIR_FILE_NAME = "pnode-keypair.json";
     const DEVNET_PROGRAM = new PublicKey("2YCmooMUuhAZRcxKVA62zc9A2NiWfqbCnJbm53UT4aic");
+
+    const manager = new PublicKey(walletPubKey)
 
     try {
         const filePath = path.join(KEYPAIR_DIR, KEYPAIR_FILE_NAME);
@@ -32,6 +34,11 @@ const registerPNode = async () => {
             },
             {
                 pubkey: registry,
+                isSigner: false,
+                isWritable: true,
+            },
+            {
+                pubkey: manager,
                 isSigner: false,
                 isWritable: true,
             },
