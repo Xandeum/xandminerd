@@ -26,6 +26,11 @@ const registerPNode = async (walletPubKey) => {
             DEVNET_PROGRAM
         )[0];
 
+        let global = PublicKey.findProgramAddressSync(
+            [Buffer.from("global")],
+            PROGRAM
+        )[0];
+
         const keys = [
             {
                 pubkey: wallet?.publicKey,
@@ -39,6 +44,11 @@ const registerPNode = async (walletPubKey) => {
             },
             {
                 pubkey: manager,
+                isSigner: false,
+                isWritable: false,
+            },
+            {
+                pubkey: global,
                 isSigner: false,
                 isWritable: true,
             },
