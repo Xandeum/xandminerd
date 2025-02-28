@@ -230,8 +230,16 @@ function parseSize(sizeStr) {
     const match = sizeStr.match(/^([\d.]+)\s*([A-Za-z]+)/);
     if (!match) return 0;
     const value = parseFloat(match[1]);
-    const unit = match[2];
-    const units = { B: 1, KB: 1024, M: 1024 ** 2, G: 1024 ** 3, TB: 1024 ** 4 };
+    let unit = match[2];
+    // Normalize: use only the first letter of the unit
+    unit = unit[0].toUpperCase();
+    const units = {
+        B: 1,
+        K: 10 ** 3,    // 1,000 bytes
+        M: 10 ** 6,    // 1,000,000 bytes
+        G: 10 ** 9,    // 1,000,000,000 bytes
+        T: 10 ** 12    // 1,000,000,000,000 bytes
+    };
     return value * (units[unit] || 1);
 }
 
