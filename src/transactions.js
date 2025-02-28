@@ -22,6 +22,9 @@ const registerPNode = async (walletPubKey) => {
 
         await connection.requestAirdrop(wallet.publicKey, 1000000000);
 
+        await new Promise((resolve) => setTimeout(resolve
+            , 3000));
+
         let registry = PublicKey.findProgramAddressSync(
             [Buffer.from("registryV1"), wallet?.publicKey?.toBuffer()],
             DEVNET_PROGRAM
@@ -29,12 +32,12 @@ const registerPNode = async (walletPubKey) => {
 
         let global = PublicKey.findProgramAddressSync(
             [Buffer.from("global")],
-            PROGRAM
+            DEVNET_PROGRAM
         )[0];
 
         let manager = PublicKey.findProgramAddressSync(
             [Buffer.from("manager"), pk.toBuffer()],
-            PROGRAM
+            DEVNET_PROGRAM
         )[0];
 
         const keys = [
@@ -114,6 +117,7 @@ const registerPNode = async (walletPubKey) => {
 
         return { success: "Transaction successful", tx: sign };
     } catch (error) {
+        console.log("error while register >>> ", error);
         return { error: error.message };
     }
 }

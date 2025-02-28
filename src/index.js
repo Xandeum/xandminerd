@@ -11,6 +11,8 @@ const { getDiskSpaceInfo, testNetworkSpeed } = require('./helpers');
 let cors = require('cors');
 const { registerPNode } = require('./transactions');
 const app = express();
+
+app.use(express.json());
 app.use(cors())
 const port = 4000;
 
