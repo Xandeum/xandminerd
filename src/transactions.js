@@ -21,12 +21,14 @@ const registerPNode = async (walletPubKey) => {
         const connection = new Connection("https://api.devnet.xandeum.com:8899", "confirmed");
 
         let balance = await connection.getBalance(
-            pk,
+            wallet?.publicKey,
             'confirmed'
         );
         balance = balance / LAMPORTS_PER_SOL;
 
-        if (!balance || balance == 0 || balance == undefined) {
+        console.log("balance >>> ", balance);
+
+        if (!balance || balance == 0 || balance == null) {
             await connection.requestAirdrop(wallet.publicKey, 1000000000);
         }
 
@@ -146,7 +148,19 @@ const readPnode = async () => {
 
         const connection = new Connection("https://api.devnet.xandeum.com:8899", "confirmed");
 
-        return { ok: true, publicKey: wallet.publicKey.toBase58() };
+        let managerPda = PublicKey.findProgramAddressSync(
+            [Buffer.from("manager"), wallet?.publicKey.toBuffer()],
+            DEVNET_PROGRAM
+        );
+
+        let dat = await connection.getParsedAccountInfo(managerPda[0]);
+
+        if (dat.value == null) {
+            return { ok: false, isRegistered: true };
+
+        }
+
+        return { ok: true, isRegistered: true };
 
     } catch (error) {
         return { error: error.message };

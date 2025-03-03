@@ -9,7 +9,7 @@ const { getDiskSpaceInfo, testNetworkSpeed } = require('./helpers');
 
 
 let cors = require('cors');
-const { registerPNode } = require('./transactions');
+const { registerPNode, readPnode } = require('./transactions');
 const app = express();
 
 app.use(express.json());
@@ -129,10 +129,10 @@ app.get('/pnode', (req, res) => {
   readPnode().then((data) => {
     if (data?.error) {
       res.status(500);
-      res.send({ err: data?.error });
+      res.send({ ok: false, err: data?.error });
     }
     res.status(200);
-    res.send({ ok: true, tx: data });
+    res.send({ ok: true, data });
   }).catch((err) => {
     res.status(500);
     res.send({ err });
