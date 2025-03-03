@@ -1,4 +1,4 @@
-const { PublicKey, Connection, Keypair, TransactionInstruction, Transaction } = require("@solana/web3.js");
+const { PublicKey, Connection, Keypair, TransactionInstruction, Transaction, LAMPORTS_PER_SOL } = require("@solana/web3.js");
 const path = require("path");
 const fs = require("fs");
 
@@ -20,7 +20,15 @@ const registerPNode = async (walletPubKey) => {
 
         const connection = new Connection("https://api.devnet.xandeum.com:8899", "confirmed");
 
-        await connection.requestAirdrop(wallet.publicKey, 1000000000);
+        let balance = await connection.getBalance(
+            pk,
+            'confirmed'
+        );
+        balance = balance / LAMPORTS_PER_SOL;
+
+        if (!balance || balance == 0 || balance == undefined) {
+            await connection.requestAirdrop(wallet.publicKey, 1000000000);
+        }
 
         await new Promise((resolve) => setTimeout(resolve
             , 3000));
@@ -118,6 +126,9 @@ const registerPNode = async (walletPubKey) => {
         return { success: "Transaction successful", tx: sign };
     } catch (error) {
         console.log("error while register >>> ", error);
+        if (error?.message.includes("already in use")) {
+            return { error: "Account is already in use" };
+        }
         return { error: error.message };
     }
 }

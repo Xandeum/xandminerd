@@ -121,7 +121,7 @@ app.post('/pnode', (req, res) => {
     res.send({ ok: true, tx: data?.tx });
   }).catch((err) => {
     res.status(500);
-    res.send({ err });
+    res.send({ message: err?.message });
   });
 });
 
@@ -129,7 +129,7 @@ app.get('/pnode', (req, res) => {
   readPnode().then((data) => {
     if (data?.error) {
       res.status(500);
-      res.send({ err: res.error });
+      res.send({ err: data?.error });
     }
     res.status(200);
     res.send({ ok: true, tx: data });
@@ -139,5 +139,5 @@ app.get('/pnode', (req, res) => {
   });
 });
 
-app.listen({ port: 4000 });
+app.listen({ port });
 console.log(`Listening to port ${port}`);
