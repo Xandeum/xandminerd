@@ -5,7 +5,7 @@ const path = require("path");
 
 const { createHandler } = require('graphql-http/lib/use/express');
 const schema = require('./schema');
-const { getDiskSpaceInfo, testNetworkSpeed } = require('./helpers');
+const { getDiskSpaceInfo, testNetworkSpeed, dedicateSpace } = require('./helpers');
 
 
 let cors = require('cors');
@@ -22,6 +22,26 @@ app.post('/drives', (req, res) => {
     // console.log("res >>> ", data)
     res.status(200);
     res.send({ data: { drives: data } });
+  }).catch((err) => {
+    res.status(500);
+    res.send({ err });
+  });
+});
+
+//dedicate space
+app.post('/drive/dedicate', (req, res) => {
+  const { space, path } = req?.body;
+  dedicateSpace(space, path).then((data) => {
+    if (data?.ok) {
+      res.status(200);
+      res.json({ data });
+      return;
+    }
+    res.status(500);
+    res.json({ ok: false, error: "Internal server error" })
+  }).catch((err) => {
+    res.status(500);
+    res.json({ err });
   });
 });
 
@@ -130,6 +150,7 @@ app.get('/pnode', (req, res) => {
     if (data?.error) {
       res.status(500);
       res.send({ ok: false, err: data?.error });
+      return;
     }
     res.status(200);
     res.send({ ok: true, data });

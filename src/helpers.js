@@ -1,26 +1,10 @@
 const si = require('systeminformation');
 const os = require('os');
-const axios = require('axios');
+const fs = require('fs').promises;
 const { exec } = require('child_process');
 const util = require('util');
 const speedTest = require('speedtest-net');
 const execPromise = util.promisify(exec);
-
-// const getDriveInfo = async () => {
-// const platform = os.platform(); //win32, darwin
-
-//     try {
-//         // const drives = await si.diskLayout()
-//         // console.log("diskLayout>>> ", drives)
-//         // const drives = await si.blockDevices()
-//         // console.log("blockDevices>>> ", drives)
-//         const drives = await si.fsSize()
-//         console.log("fsSize>>> ", drives)
-//         return drives;
-//     } catch (err) {
-//         console.log("error while reading system info>>> ", err)
-//     }
-// }
 
 const getDriveInfo = async () => {
     let drives = [];
@@ -155,7 +139,6 @@ const getDiskSpaceInfo = async () => {
                                 device?.children?.forEach(child => {
                                     const sizeInBytes = parseSize(child.size);
                                     if (sizeInBytes < 10 * 1024 ** 3) return;
-
                                     const drive = {
                                         name: child?.name,
                                         used: parseSize(child?.fsused || 0) || 0,
@@ -217,6 +200,7 @@ const getDiskSpaceInfo = async () => {
         // } 
         else {
             console.error('Unsupported operating system.');
+            return [];
         }
     } catch (error) {
         console.error('Error fetching disk information:', error);
@@ -315,4 +299,56 @@ const testNetworkSpeed = async () => {
 
 }
 
-module.exports = { getDriveInfo, getDiskSpaceInfo, testNetworkSpeed }
+const dedicateSpace = async (size, mount) => {
+
+    try {
+        const sizeInBytes = size * 1e9;
+
+        // return true;
+        const platform = os.platform(); // 'win32', 'darwin', 'linux'
+
+        // For Linux-based OS
+        if (platform === 'linux') {
+
+            // const fileHandle = await fs.open(filePath, 'w'); // Open the file
+            // await fileHandle.truncate(sizeInBytes); // Truncate to allocate space
+            // await fileHandle.close(); // Close the file handle
+
+            // Use fallocate to allocate actual disk space
+            const sizeInGB = size;
+            const filePath = `${mount}/xandeum-pages`;
+
+            // Check if the file already exists
+            let currentSize = 0;
+            try {
+                const stats = await fs.stat(filePath); // Get file stats
+                currentSize = stats.size; // Current size in bytes
+            } catch (error) {
+                if (error.code !== 'ENOENT') throw error; // Rethrow if not "file not found"
+            }
+
+            // Calculate the new total size
+            const newSizeInBytes = currentSize + sizeInGB * 1e9;
+
+            // Use fallocate to resize the file
+            await new Promise((resolve, reject) => {
+                exec(`fallocate -l ${newSizeInBytes} ${filePath}`, (err) => {
+                    if (err) return reject(err);
+                    resolve();
+                });
+            });
+
+            console.log(`File resized to ${newSizeInBytes / 1e9}GB`);
+
+            return { ok: true, path: filePath }; // Return success response
+        } else {
+            console.error('Unsupported operating system.');
+            return { ok: false, error: 'Unsupported operating system.' };
+        }
+    } catch (error) {
+        console.error('Error dedicating space:', error.message);
+        return { ok: false, error: error.message }; // Return error response
+    }
+};
+
+module.exports = { getDriveInfo, getDiskSpaceInfo, testNetworkSpeed, dedicateSpace }
