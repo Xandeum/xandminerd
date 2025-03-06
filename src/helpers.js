@@ -139,13 +139,15 @@ const getDiskSpaceInfo = async () => {
                                 device?.children?.forEach(child => {
                                     const sizeInBytes = parseSize(child.size);
                                     if (sizeInBytes < 10 * 1024 ** 3) return;
+                                    const isMaxFilled = parseFloat(child['fsuse%']) >= 94.0;
                                     const drive = {
                                         name: child?.name,
                                         used: parseSize(child?.fsused || 0) || 0,
-                                        available: parseSize(child?.size) - (parseSize(child?.fsused || 0) || 0),
+                                        available: isMaxFilled ? 0 : parseSize(child?.size) - (parseSize(child?.fsused || 0) || 0),
                                         capacity: parseSize(child?.size),
                                         type: child?.type,
                                         mount: child?.mountpoints,
+                                        percentage: child?.fsuse
                                     };
                                     drives.push(drive);
                                 });
