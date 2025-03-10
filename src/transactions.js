@@ -50,6 +50,8 @@ const registerPNode = async (walletPubKey) => {
             DEVNET_PROGRAM
         )[0];
 
+        let index = new PublicKey("JAMRrRGg5YRhsjHckaWSnYryLqSRpc8oYwgUnA1GStYc"); // pNode list account
+
         const keys = [
             {
                 pubkey: wallet?.publicKey,
@@ -77,6 +79,11 @@ const registerPNode = async (walletPubKey) => {
                 isWritable: true,
             },
             {
+                pubkey: index,
+                isSigner: false,
+                isWritable: true,
+            },
+            {
                 pubkey: new PublicKey("11111111111111111111111111111111"),
                 isSigner: false,
                 isWritable: false,
@@ -88,7 +95,26 @@ const registerPNode = async (walletPubKey) => {
             },
         ];
 
-        const data = Buffer.from(Int8Array.from([0]).buffer);
+        let indexData = await connection.getParsedAccountInfo(index);
+
+        let pnodes = []
+
+        for (let i = 0; i < indexData.value.data.length; i += 32) {
+            const pubkeyBytes = indexData.value.data.slice(i, i + 32);
+            const pubkey = new PublicKey(pubkeyBytes);
+            pnodes.push(pubkey)
+        }
+
+        for (let j = 0; j < pnodes.length; j++) {
+            if (pnodes[j].toBase58() == PublicKey.default.toBase58()) {
+                index = j;
+                break
+            }
+        }
+
+        // const data = Buffer.from(Int8Array.from([0]).buffer);
+        const data = Buffer.concat([Buffer.from(Int8Array.from([0]).buffer), numToUint8Array(index)]);
+
         const txIx = new TransactionInstruction({
             keys: keys,
             programId: DEVNET_PROGRAM,
