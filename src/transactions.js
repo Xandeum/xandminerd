@@ -9,8 +9,8 @@ const registerPNode = async (walletPubKey) => {
     const KEYPAIR_FILE_NAME = "pnode-keypair.json";
     const DEVNET_PROGRAM = new PublicKey("2YCmooMUuhAZRcxKVA62zc9A2NiWfqbCnJbm53UT4aic");
 
-    // const owner = new PublicKey(walletPubKey)
-    let pk = new PublicKey("9eVnceJcJFmdPiyNgFx1gQcqkLego5J4Pkmgoog4BDoU")
+    const owner = new PublicKey(walletPubKey)
+    // let pk = new PublicKey("9eVnceJcJFmdPiyNgFx1gQcqkLego5J4Pkmgoog4BDoU")
 
     try {
         const filePath = path.join(KEYPAIR_DIR, KEYPAIR_FILE_NAME);
@@ -46,7 +46,7 @@ const registerPNode = async (walletPubKey) => {
         )[0];
 
         let manager = PublicKey.findProgramAddressSync(
-            [Buffer.from("manager"), pk.toBuffer()],
+            [Buffer.from("manager"), owner.toBuffer()],
             DEVNET_PROGRAM
         )[0];
 
@@ -64,7 +64,7 @@ const registerPNode = async (walletPubKey) => {
                 isWritable: true,
             },
             {
-                pubkey: pk,
+                pubkey: owner,
                 isSigner: false,
                 isWritable: false,
             },
