@@ -130,6 +130,9 @@ app.get('/pnode', (req, res) => {
     if (data?.error) {
       res.status(500);
       res.send({ ok: false, err: data?.error });
+    } else if (!data?.ok) {
+      res.status(404);
+      res.send({ ok: false, isRegistered: false });
     }
     res.status(200);
     res.send({ ok: true, data });

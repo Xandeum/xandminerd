@@ -182,8 +182,7 @@ const readPnode = async () => {
         let dat = await connection.getParsedAccountInfo(managerPda[0]);
 
         if (dat.value == null) {
-            return { ok: false, isRegistered: true };
-
+            return { ok: false, isRegistered: false };
         }
 
         return { ok: true, isRegistered: true };
