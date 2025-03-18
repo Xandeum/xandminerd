@@ -35,7 +35,7 @@ const registerPNode = async (walletPubKey) => {
             , 3000));
 
         let registry = PublicKey.findProgramAddressSync(
-            [Buffer.from("registryV1"), wallet?.publicKey?.toBuffer()],
+            [Buffer.from("registry"), wallet?.publicKey?.toBuffer()],
             DEVNET_PROGRAM
         )[0];
 
