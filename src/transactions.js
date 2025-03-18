@@ -2,12 +2,13 @@ const { PublicKey, Connection, Keypair, TransactionInstruction, Transaction, LAM
 const path = require("path");
 const fs = require("fs");
 
+const DEVNET_PROGRAM = new PublicKey("6Bzz3KPvzQruqBg2vtsvkuitd6Qb4iCcr5DViifCwLsL");
+
 
 const registerPNode = async (walletPubKey) => {
 
     const KEYPAIR_DIR = "./keypairs";
     const KEYPAIR_FILE_NAME = "pnode-keypair.json";
-    const DEVNET_PROGRAM = new PublicKey("2YCmooMUuhAZRcxKVA62zc9A2NiWfqbCnJbm53UT4aic");
 
     const owner = new PublicKey(walletPubKey)
     // let pk = new PublicKey("9eVnceJcJFmdPiyNgFx1gQcqkLego5J4Pkmgoog4BDoU")
@@ -25,8 +26,6 @@ const registerPNode = async (walletPubKey) => {
             'confirmed'
         );
         balance = balance / LAMPORTS_PER_SOL;
-
-        console.log("balance >>> ", balance);
 
         if (!balance || balance == 0 || balance == null) {
             await connection.requestAirdrop(wallet.publicKey, 1000000000);
@@ -50,7 +49,7 @@ const registerPNode = async (walletPubKey) => {
             DEVNET_PROGRAM
         )[0];
 
-        let index = new PublicKey("JAMRrRGg5YRhsjHckaWSnYryLqSRpc8oYwgUnA1GStYc"); // pNode list account
+        let index = new PublicKey("GHTUesiECzPRHTShmBGt9LiaA89T8VAzw8ZWNE6EvZRs"); // pNode list account(index account)
 
         const keys = [
             {
@@ -175,7 +174,6 @@ function numToUint8Array(num) {
 const readPnode = async () => {
     const KEYPAIR_DIR = "./keypairs";
     const KEYPAIR_FILE_NAME = "pnode-keypair.json";
-    const DEVNET_PROGRAM = new PublicKey("2YCmooMUuhAZRcxKVA62zc9A2NiWfqbCnJbm53UT4aic");
 
     try {
         const filePath = path.join(KEYPAIR_DIR, KEYPAIR_FILE_NAME);

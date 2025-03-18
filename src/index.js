@@ -19,7 +19,6 @@ const port = 4000;
 // app.post('/drives', createHandler({ schema }));
 app.post('/drives', (req, res) => {
   getDiskSpaceInfo().then((data) => {
-    // console.log("res >>> ", data)
     res.status(200);
     res.send({ data: { drives: data } });
   });
@@ -27,7 +26,6 @@ app.post('/drives', (req, res) => {
 
 app.get('/network', (req, res) => {
   testNetworkSpeed().then((data) => {
-    console.log("network speed >>> ", data);
     res.status(200);
     res.send({ data: JSON.parse(data) });
   }).catch((err) => {
