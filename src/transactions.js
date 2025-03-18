@@ -161,6 +161,17 @@ const registerPNode = async (walletPubKey) => {
     }
 }
 
+function numToUint8Array(num) {
+    const arr = new Uint8Array(8);
+    for (let i = 0; i < 8; i++) {
+        // Isolate the least significant byte using bitwise AND
+        arr[i] = num & 0xff;
+        // Shift the number right by 8 bits to get the next byte
+        num >>= 8;
+    }
+    return arr;
+}
+
 const readPnode = async () => {
     const KEYPAIR_DIR = "./keypairs";
     const KEYPAIR_FILE_NAME = "pnode-keypair.json";
