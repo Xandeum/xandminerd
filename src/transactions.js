@@ -184,7 +184,7 @@ const readPnode = async () => {
         const connection = new Connection("https://api.devnet.xandeum.com:8899", "confirmed");
 
         let managerPda = PublicKey.findProgramAddressSync(
-            [Buffer.from("manager"), wallet?.publicKey.toBuffer()],
+            [Buffer.from("registry"), wallet?.publicKey.toBuffer()],
             DEVNET_PROGRAM
         );
 
