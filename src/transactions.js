@@ -183,12 +183,12 @@ const readPnode = async () => {
 
         const connection = new Connection("https://api.devnet.xandeum.com:8899", "confirmed");
 
-        let managerPda = PublicKey.findProgramAddressSync(
+        let registryPDA = PublicKey.findProgramAddressSync(
             [Buffer.from("registry"), wallet?.publicKey.toBuffer()],
             DEVNET_PROGRAM
         );
 
-        let dat = await connection.getParsedAccountInfo(managerPda[0]);
+        let dat = await connection.getParsedAccountInfo(registryPDA[0]);
 
         if (dat.value == null) {
             return { ok: false, isRegistered: false };
