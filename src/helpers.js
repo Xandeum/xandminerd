@@ -296,8 +296,6 @@ const testNetworkSpeed = async () => {
 }
 
 const getServerInfo = async () => {
-    const command = 'hostname';
-
 
     try {
         const hostname = os.hostname();
