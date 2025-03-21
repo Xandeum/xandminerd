@@ -22,10 +22,9 @@
     "@solana/web3.js": "^1.98.0",
     "cors": "^2.8.5",
     "express": "^4.21.2",
-    "fast-cli": "^3.2.0",
+    "fast-cli": "^4.0.0",
     "node-fetch": "^3.3.2",
     "nodemon": "^3.0.1",
-    "speedtest-net": "^2.2.0",
-    "xml2js": "^0.6.2"
+    "speedtest-net": "^1.6.2"
   }
 }
