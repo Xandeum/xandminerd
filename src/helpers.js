@@ -1,51 +1,9 @@
-const si = require('systeminformation');
+
 const os = require('os');
 const { exec } = require('child_process');
 const util = require('util');
 const speedTest = require('speedtest-net');
 const execPromise = util.promisify(exec);
-
-const getDriveInfo = async () => {
-    let drives = [];
-    try {
-        const blockDevices = await si.blockDevices();
-        console.log("blockDevices >>> ", blockDevices);
-        if (blockDevices && blockDevices.length > 0) {
-            for (const device of blockDevices) {
-                const fsSize = await si.fsSize(device?.identifier);
-                console.log(`fsSize for device ${device?.identifier} >>> `, fsSize);
-
-                let drive = {
-                    id: device?.uuid,
-                    identifier: device?.identifier,
-                    capacity: device?.size,
-                    mount: device?.mount,
-                    type: device?.type,
-                    device: device?.device,
-                    name: device?.name,
-                    used: 0,
-                    available: 0,
-                    fsSize: 0
-                };
-
-                if (fsSize && fsSize.length > 0) {
-                    const fsInfo = fsSize.find(fs => fs?.fs === drive?.name);
-                    if (fsInfo) {
-                        drive.used = fsInfo?.used;
-                        drive.available = fsInfo?.available;
-                        drive.fsSize = fsInfo?.size;
-                    }
-                }
-
-                drives.push(drive);
-            }
-        }
-
-        return drives;
-    } catch (err) {
-        console.log("error while reading system info >>> ", err);
-    }
-};
 
 const getDiskSpaceInfo = async () => {
     let drives = [];

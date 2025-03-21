@@ -3,8 +3,6 @@ const { Keypair } = require("@solana/web3.js");
 const fs = require("fs");
 const path = require("path");
 
-const { createHandler } = require('graphql-http/lib/use/express');
-const schema = require('./schema');
 const { getDiskSpaceInfo, testNetworkSpeed, getServerIP, getServerInfo } = require('./helpers');
 
 
@@ -17,7 +15,6 @@ app.use(cors())
 const PORT = 4000;
 const HOST = '127.0.0.1';
 
-// app.post('/drives', createHandler({ schema }));
 app.post('/drives', (req, res) => {
   getDiskSpaceInfo().then((data) => {
     res.status(200);
