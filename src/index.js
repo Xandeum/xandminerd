@@ -5,7 +5,7 @@ const path = require("path");
 
 const { createHandler } = require('graphql-http/lib/use/express');
 const schema = require('./schema');
-const { getDiskSpaceInfo, testNetworkSpeed, getServerIP } = require('./helpers');
+const { getDiskSpaceInfo, testNetworkSpeed, getServerIP, getServerInfo } = require('./helpers');
 
 
 let cors = require('cors');
@@ -144,9 +144,15 @@ app.get('/pnode', (req, res) => {
 
 app.get('/server-ip', (req, res) => {
 
-  res.status(200);
-  res.json({ ok: true, ip: HOST });
+  getServerInfo().then((data) => {
+    if (!data?.ok) {
+      res.status(500);
+      res.json({ ok: false })
+    }
+    res.status(200);
+    res.json({ ok: true, ...data });
 
+  });
 });
 
 app.listen(PORT, HOST, () => {

@@ -6,22 +6,6 @@ const util = require('util');
 const speedTest = require('speedtest-net');
 const execPromise = util.promisify(exec);
 
-// const getDriveInfo = async () => {
-// const platform = os.platform(); //win32, darwin
-
-//     try {
-//         // const drives = await si.diskLayout()
-//         // console.log("diskLayout>>> ", drives)
-//         // const drives = await si.blockDevices()
-//         // console.log("blockDevices>>> ", drives)
-//         const drives = await si.fsSize()
-//         console.log("fsSize>>> ", drives)
-//         return drives;
-//     } catch (err) {
-//         console.log("error while reading system info>>> ", err)
-//     }
-// }
-
 const getDriveInfo = async () => {
     let drives = [];
     try {
@@ -58,7 +42,6 @@ const getDriveInfo = async () => {
             }
         }
 
-        console.log("drive list >>> ", drives);
         return drives;
     } catch (err) {
         console.log("error while reading system info >>> ", err);
@@ -71,9 +54,6 @@ const getDiskSpaceInfo = async () => {
 
     try {
         if (platform === 'darwin') {
-            // Execute 'df' command to get file system information on Unix-like systems
-            // const stdout = execSync('df -P -l').toString();
-            // const command = 'df -h | grep -E "^/dev/"';
 
             const command = 'diskutil apfs list';
 
@@ -315,5 +295,33 @@ const testNetworkSpeed = async () => {
 
 }
 
+const getServerInfo = async () => {
+    const command = 'hostname';
 
-module.exports = { getDriveInfo, getDiskSpaceInfo, testNetworkSpeed }
+
+    try {
+        const hostname = os.hostname();
+        const interfaces = os.networkInterfaces();
+        let ip = '127.0.0.1'; // Default to localhost
+
+        // Find the first non-internal IPv4 address
+        for (const interfaceName in interfaces) {
+            const iface = interfaces[interfaceName];
+            for (const alias of iface) {
+                if (alias.family === 'IPv4' && !alias.internal) {
+                    ip = alias.address;
+                    break;
+                }
+            }
+        }
+
+        return { ok: true, data: { hostname, ip } }
+
+    } catch (error) {
+        console.log("error while reading server info >>> ", error);
+        return { ok: false }
+    }
+}
+
+
+module.exports = { getDriveInfo, getDiskSpaceInfo, testNetworkSpeed, getServerInfo }
