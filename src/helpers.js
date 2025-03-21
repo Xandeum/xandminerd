@@ -279,4 +279,4 @@ const getServerInfo = async () => {
 }
 
 
-module.exports = { getDriveInfo, getDiskSpaceInfo, testNetworkSpeed, getServerInfo }
+module.exports = { getDiskSpaceInfo, testNetworkSpeed, getServerInfo }
