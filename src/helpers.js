@@ -1,6 +1,5 @@
 const si = require('systeminformation');
 const os = require('os');
-const axios = require('axios');
 const { exec } = require('child_process');
 const util = require('util');
 const speedTest = require('speedtest-net');
