@@ -1,0 +1,1 @@
+export const SYMLINKPATH = '/var/run/xandeum-pod'

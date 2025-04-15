@@ -3,7 +3,8 @@ const os = require('os');
 const fs = require('fs').promises;
 const { exec } = require('child_process');
 const util = require('util');
-const speedTest = require('speedtest-net');
+// const speedTest = require('speedtest-net');
+const { SYMLINKPATH } = require('./CONSTS');
 const execPromise = util.promisify(exec);
 
 const getDiskSpaceInfo = async () => {
@@ -258,7 +259,6 @@ const testNetworkSpeed = async () => {
 const dedicateSpace = async (size, mount) => {
 
     try {
-        const sizeInBytes = size * 1e9;
 
         // return true;
         const platform = os.platform(); // 'win32', 'darwin', 'linux'
@@ -266,13 +266,10 @@ const dedicateSpace = async (size, mount) => {
         // For Linux-based OS
         if (platform === 'linux') {
 
-            // const fileHandle = await fs.open(filePath, 'w'); // Open the file
-            // await fileHandle.truncate(sizeInBytes); // Truncate to allocate space
-            // await fileHandle.close(); // Close the file handle
-
             // Use fallocate to allocate actual disk space
             const sizeInGB = size;
             const filePath = `${mount}/xandeum-pages`;
+            const symlinkPath = SYMLINKPATH;
 
             // Check if the file already exists
             let currentSize = 0;
@@ -296,7 +293,21 @@ const dedicateSpace = async (size, mount) => {
 
             console.log(`File resized to ${newSizeInBytes / 1e9}GB`);
 
-            return { ok: true, path: filePath }; // Return success response
+            // Create a symlink to the file at /var/run/xandeum-pod
+            try {
+                // Remove existing symlink if it exists
+                await fs.unlink(symlinkPath).catch(err => {
+                    if (err.code !== 'ENOENT') throw err; // Ignore if symlink doesn't exist
+                });
+                await fs.symlink(filePath, symlinkPath);
+                console.log(`Symlink created at ${symlinkPath} pointing to ${filePath}`);
+            } catch (symlinkError) {
+                console.error('Error creating symlink:', symlinkError.message);
+                return { ok: false, error: `Failed to create symlink: ${symlinkError.message}` };
+            }
+
+            return { ok: true, path: filePath, symlink: symlinkPath }; // Return success response
+
         } else {
             console.error('Unsupported operating system.');
             return { ok: false, error: 'Unsupported operating system.' };
