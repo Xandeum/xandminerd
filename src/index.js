@@ -3,9 +3,7 @@ const { Keypair } = require("@solana/web3.js");
 const fs = require("fs");
 const path = require("path");
 
-const { createHandler } = require('graphql-http/lib/use/express');
-const schema = require('./schema');
-const { getDiskSpaceInfo, testNetworkSpeed, dedicateSpace } = require('./helpers');
+const { getDiskSpaceInfo, testNetworkSpeed, getServerInfo } = require('./helpers');
 
 
 let cors = require('cors');
@@ -14,12 +12,11 @@ const app = express();
 
 app.use(express.json());
 app.use(cors())
-const port = 4000;
+const PORT = 4000;
+const HOST = '127.0.0.1';
 
-// app.post('/drives', createHandler({ schema }));
 app.post('/drives', (req, res) => {
   getDiskSpaceInfo().then((data) => {
-    // console.log("res >>> ", data)
     res.status(200);
     res.send({ data: { drives: data } });
   }).catch((err) => {
@@ -47,7 +44,6 @@ app.post('/drive/dedicate', (req, res) => {
 
 app.get('/network', (req, res) => {
   testNetworkSpeed().then((data) => {
-    console.log("network speed >>> ", data);
     res.status(200);
     res.send({ data: JSON.parse(data) });
   }).catch((err) => {
@@ -149,16 +145,33 @@ app.get('/pnode', (req, res) => {
   readPnode().then((data) => {
     if (data?.error) {
       res.status(500);
-      res.send({ ok: false, err: data?.error });
-      return;
+      res.json({ ok: false, err: data?.error });
+    } else if (!data?.ok) {
+      res.status(404);
+      res.json({ ok: false, isRegistered: false });
+    } else {
+      res.status(200);
+      res.json({ ok: true, data });
     }
-    res.status(200);
-    res.send({ ok: true, data });
   }).catch((err) => {
     res.status(500);
     res.send({ err });
   });
 });
 
-app.listen({ port });
-console.log(`Listening to port ${port}`);
+app.get('/server-ip', (req, res) => {
+
+  getServerInfo().then((data) => {
+    if (!data?.ok) {
+      res.status(500);
+      res.json({ ok: false })
+    }
+    res.status(200);
+    res.json({ ok: true, ...data });
+
+  });
+});
+
+app.listen(PORT, HOST, () => {
+  console.log(`xandminerD running at http://${HOST}:${PORT}`);
+});

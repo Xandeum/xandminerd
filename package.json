@@ -9,27 +9,21 @@
   },
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/Xandeum/nixAgent.git"
+    "url": "git+https://github.com/Xandeum/xandminerd.git"
   },
   "keywords": [],
   "author": "",
   "license": "ISC",
   "bugs": {
-    "url": "https://github.com/Xandeum/nixAgent/issues"
+    "url": "https://github.com/Xandeum/xandminerd/issues"
   },
-  "homepage": "https://github.com/Xandeum/nixAgent#readme",
+  "homepage": "https://github.com/Xandeum/xandminerd#readme",
   "dependencies": {
     "@solana/web3.js": "^1.98.0",
-    "axios": "^1.6.3",
     "cors": "^2.8.5",
-    "express": "^4.18.2",
-    "fast-cli": "^3.2.0",
-    "graphql": "^16.8.1",
-    "graphql-http": "^1.22.0",
-    "node-fetch": "^3.3.2",
+    "express": "^4.21.2",
+    "fast-cli": "^4.0.0",
     "nodemon": "^3.0.1",
-    "speedtest-net": "^2.2.0",
-    "systeminformation": "^5.21.15",
-    "xml2js": "^0.6.2"
+    "speedtest-net": "^1.6.2"
   }
 }

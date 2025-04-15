@@ -2,15 +2,16 @@ const { PublicKey, Connection, Keypair, TransactionInstruction, Transaction, LAM
 const path = require("path");
 const fs = require("fs");
 
+const DEVNET_PROGRAM = new PublicKey("6Bzz3KPvzQruqBg2vtsvkuitd6Qb4iCcr5DViifCwLsL");
+
 
 const registerPNode = async (walletPubKey) => {
 
     const KEYPAIR_DIR = "./keypairs";
     const KEYPAIR_FILE_NAME = "pnode-keypair.json";
-    const DEVNET_PROGRAM = new PublicKey("2YCmooMUuhAZRcxKVA62zc9A2NiWfqbCnJbm53UT4aic");
 
-    // const owner = new PublicKey(walletPubKey)
-    let pk = new PublicKey("9eVnceJcJFmdPiyNgFx1gQcqkLego5J4Pkmgoog4BDoU")
+    const owner = new PublicKey(walletPubKey)
+    // let pk = new PublicKey("9eVnceJcJFmdPiyNgFx1gQcqkLego5J4Pkmgoog4BDoU")
 
     try {
         const filePath = path.join(KEYPAIR_DIR, KEYPAIR_FILE_NAME);
@@ -26,8 +27,6 @@ const registerPNode = async (walletPubKey) => {
         );
         balance = balance / LAMPORTS_PER_SOL;
 
-        console.log("balance >>> ", balance);
-
         if (!balance || balance == 0 || balance == null) {
             await connection.requestAirdrop(wallet.publicKey, 1000000000);
         }
@@ -36,7 +35,7 @@ const registerPNode = async (walletPubKey) => {
             , 3000));
 
         let registry = PublicKey.findProgramAddressSync(
-            [Buffer.from("registryV1"), wallet?.publicKey?.toBuffer()],
+            [Buffer.from("registry"), wallet?.publicKey?.toBuffer()],
             DEVNET_PROGRAM
         )[0];
 
@@ -46,11 +45,11 @@ const registerPNode = async (walletPubKey) => {
         )[0];
 
         let manager = PublicKey.findProgramAddressSync(
-            [Buffer.from("manager"), pk.toBuffer()],
+            [Buffer.from("manager"), owner.toBuffer()],
             DEVNET_PROGRAM
         )[0];
 
-        let index = new PublicKey("JAMRrRGg5YRhsjHckaWSnYryLqSRpc8oYwgUnA1GStYc"); // pNode list account
+        let index = new PublicKey("GHTUesiECzPRHTShmBGt9LiaA89T8VAzw8ZWNE6EvZRs"); // pNode list account(index account)
 
         const keys = [
             {
@@ -64,7 +63,7 @@ const registerPNode = async (walletPubKey) => {
                 isWritable: true,
             },
             {
-                pubkey: pk,
+                pubkey: owner,
                 isSigner: false,
                 isWritable: false,
             },
@@ -161,10 +160,20 @@ const registerPNode = async (walletPubKey) => {
     }
 }
 
+function numToUint8Array(num) {
+    const arr = new Uint8Array(8);
+    for (let i = 0; i < 8; i++) {
+        // Isolate the least significant byte using bitwise AND
+        arr[i] = num & 0xff;
+        // Shift the number right by 8 bits to get the next byte
+        num >>= 8;
+    }
+    return arr;
+}
+
 const readPnode = async () => {
     const KEYPAIR_DIR = "./keypairs";
     const KEYPAIR_FILE_NAME = "pnode-keypair.json";
-    const DEVNET_PROGRAM = new PublicKey("2YCmooMUuhAZRcxKVA62zc9A2NiWfqbCnJbm53UT4aic");
 
     try {
         const filePath = path.join(KEYPAIR_DIR, KEYPAIR_FILE_NAME);
@@ -174,16 +183,15 @@ const readPnode = async () => {
 
         const connection = new Connection("https://api.devnet.xandeum.com:8899", "confirmed");
 
-        let managerPda = PublicKey.findProgramAddressSync(
-            [Buffer.from("manager"), wallet?.publicKey.toBuffer()],
+        let registryPDA = PublicKey.findProgramAddressSync(
+            [Buffer.from("registry"), wallet?.publicKey.toBuffer()],
             DEVNET_PROGRAM
         );
 
-        let dat = await connection.getParsedAccountInfo(managerPda[0]);
+        let dat = await connection.getParsedAccountInfo(registryPDA[0]);
 
         if (dat.value == null) {
-            return { ok: false, isRegistered: true };
-
+            return { ok: false, isRegistered: false };
         }
 
         return { ok: true, isRegistered: true };

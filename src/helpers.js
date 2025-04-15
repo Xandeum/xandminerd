@@ -1,4 +1,4 @@
-const si = require('systeminformation');
+
 const os = require('os');
 const fs = require('fs').promises;
 const { exec } = require('child_process');
@@ -6,58 +6,12 @@ const util = require('util');
 const speedTest = require('speedtest-net');
 const execPromise = util.promisify(exec);
 
-const getDriveInfo = async () => {
-    let drives = [];
-    try {
-        const blockDevices = await si.blockDevices();
-        console.log("blockDevices >>> ", blockDevices);
-        if (blockDevices && blockDevices.length > 0) {
-            for (const device of blockDevices) {
-                const fsSize = await si.fsSize(device?.identifier);
-                console.log(`fsSize for device ${device?.identifier} >>> `, fsSize);
-
-                let drive = {
-                    id: device?.uuid,
-                    identifier: device?.identifier,
-                    capacity: device?.size,
-                    mount: device?.mount,
-                    type: device?.type,
-                    device: device?.device,
-                    name: device?.name,
-                    used: 0,
-                    available: 0,
-                    fsSize: 0
-                };
-
-                if (fsSize && fsSize.length > 0) {
-                    const fsInfo = fsSize.find(fs => fs?.fs === drive?.name);
-                    if (fsInfo) {
-                        drive.used = fsInfo?.used;
-                        drive.available = fsInfo?.available;
-                        drive.fsSize = fsInfo?.size;
-                    }
-                }
-
-                drives.push(drive);
-            }
-        }
-
-        console.log("drive list >>> ", drives);
-        return drives;
-    } catch (err) {
-        console.log("error while reading system info >>> ", err);
-    }
-};
-
 const getDiskSpaceInfo = async () => {
     let drives = [];
     const platform = os.platform(); //win32, darwin
 
     try {
         if (platform === 'darwin') {
-            // Execute 'df' command to get file system information on Unix-like systems
-            // const stdout = execSync('df -P -l').toString();
-            // const command = 'df -h | grep -E "^/dev/"';
 
             const command = 'diskutil apfs list';
 
@@ -353,4 +307,30 @@ const dedicateSpace = async (size, mount) => {
     }
 };
 
-module.exports = { getDriveInfo, getDiskSpaceInfo, testNetworkSpeed, dedicateSpace }
+const getServerInfo = async () => {
+
+    try {
+        const hostname = os.hostname();
+        const interfaces = os.networkInterfaces();
+        let ip = '127.0.0.1'; // Default to localhost
+
+        // Find the first non-internal IPv4 address
+        for (const interfaceName in interfaces) {
+            const iface = interfaces[interfaceName];
+            for (const alias of iface) {
+                if (alias.family === 'IPv4' && !alias.internal) {
+                    ip = alias.address;
+                    break;
+                }
+            }
+        }
+
+        return { ok: true, data: { hostname, ip } }
+
+    } catch (error) {
+        console.log("error while reading server info >>> ", error);
+        return { ok: false }
+    }
+}
+
+module.exports = { getDiskSpaceInfo, testNetworkSpeed, dedicateSpace, getServerInfo }
