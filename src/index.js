@@ -3,7 +3,7 @@ const { Keypair } = require("@solana/web3.js");
 const fs = require("fs");
 const path = require("path");
 
-const { getDiskSpaceInfo, testNetworkSpeed, getServerInfo } = require('./helpers');
+const { getDiskSpaceInfo, testNetworkSpeed, getServerInfo, dedicateSpace } = require('./helpers');
 
 
 let cors = require('cors');
