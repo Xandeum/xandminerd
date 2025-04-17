@@ -2,7 +2,7 @@
 const os = require('os');
 const { exec } = require('child_process');
 const util = require('util');
-const speedTest = require('speedtest-net');
+// const speedTest = require('speedtest-net');
 const execPromise = util.promisify(exec);
 
 const getDiskSpaceInfo = async () => {
@@ -69,58 +69,55 @@ const getDiskSpaceInfo = async () => {
                     // Parse the JSON output from lsblk
                     const data = JSON.parse(stdout);
 
-                    // Filter for block devices that meet the criteria:
-                    // 1. Type is 'disk' or 'part'
-                    // 2. Size is greater than 10GB
-                    // 3. RO (read-only) is false
+                    // Filter devices to include disk, part, and lvm types
                     const filteredDevices = data.blockdevices.filter(device => {
-                        // Convert size to bytes for comparison
-                        const sizeInBytes = parseSize(device.size);
+                        const sizeInBytes = parseSize(device.size || '0');
                         return (
-                            (device.type === 'disk' || device.type === 'part') &&
-                            sizeInBytes > 10 * 1024 ** 3 && // Greater than 10GB
-                            device.ro === false // Read-only is false (write permissions)
+                            (device.type === 'disk' || device.type === 'part' || device.type === 'lvm') &&
+                            sizeInBytes > 10 * 1024 ** 3 &&
+                            device.ro === false
                         );
                     });
 
-                    // const drives = [];
                     if (filteredDevices.length > 0) {
-
-                        filteredDevices.forEach(device => {
-
+                        for (const device of filteredDevices) {
+                            // Process children (e.g., LVM volumes under partitions)
                             if (device?.children?.length > 0) {
-                                device?.children?.forEach(child => {
-                                    const sizeInBytes = parseSize(child.size);
-                                    if (sizeInBytes < 10 * 1024 ** 3) return;
+                                for (const child of device.children) {
+                                    const sizeInBytes = parseSize(child.size || '0');
+                                    // Include lvm children and skip if size is too small
+                                    if (sizeInBytes < 10 * 1024 ** 3 && child.type !== 'lvm') continue;
+                                    const isMaxFilled = parseFloat(child['fsuse%'] || '0%') >= 94.0;
 
                                     const drive = {
                                         name: child?.name,
-                                        used: parseSize(child?.fsused || 0) || 0,
-                                        available: parseSize(child?.size) - (parseSize(child?.fsused || 0) || 0),
-                                        capacity: parseSize(child?.size),
+                                        used: parseSize(child?.fsused || '0') || 0,
+                                        available: isMaxFilled ? 0 : (parseSize(child?.size || '0') - parseSize(child?.fsused || '0')) || 0,
+                                        capacity: parseSize(child?.size || '0') || 0,
                                         type: child?.type,
                                         mount: child?.mountpoints,
+                                        percentage: child['fsuse%'],
                                     };
                                     drives.push(drive);
-                                });
-                                return;
+                                }
+                                continue;
                             }
 
+                            // Process parent device (disk, part, or lvm)
                             const drive = {
                                 name: device?.name,
-                                used: device?.fsused || 0,
-                                available: device?.size - (device?.fused || 0),
-                                capacity: parseSize(device?.size),
+                                used: parseSize(device?.fsused || '0') || 0,
+                                available: (parseSize(device?.size || '0') - parseSize(device?.fsused || '0')) || 0,
+                                capacity: parseSize(device?.size || '0') || 0,
                                 type: device?.type,
                                 mount: device?.mountpoints,
+                                percentage: child['fsuse%'],
                             };
                             drives.push(drive);
-                        });
+                        }
                     } else {
-                        console.log('No disks or partitions found that meet the criteria.');
+                        console.log('No disks, partitions, or LVM volumes found that meet the criteria.');
                     }
-
-                    // Return the populated drives array
                     return drives;
                 } catch (error) {
                     console.error(`Error executing command: ${error.message}`);
