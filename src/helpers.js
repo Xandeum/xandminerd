@@ -111,7 +111,7 @@ const getDiskSpaceInfo = async () => {
                                 capacity: parseSize(device?.size || '0') || 0,
                                 type: device?.type,
                                 mount: device?.mountpoints,
-                                percentage: child['fsuse%'],
+                                percentage: device['fsuse%'],
                             };
                             drives.push(drive);
                         }
