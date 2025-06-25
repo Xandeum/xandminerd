@@ -159,7 +159,7 @@ const commands = [
   {
     command: 'tee',
     args: ['/etc/apt/sources.list.d/xandeum-pod.list'],
-    input: 'deb [trusted=yes] https://xandeum.github.io/pod-apt-package/ stable main58',
+    input: 'deb [trusted=yes] https://xandeum.github.io/pod-apt-package/ stable main',
     sudo: true,
   },
   {
@@ -171,6 +171,12 @@ const commands = [
     command: 'apt-get',
     args: ['install', '-y', 'pod'],
     sudo: true,
+  },
+  {
+    command: 'bash',
+    args: ['-c', '/usr/bin/pod > pod.log 2>&1 &'],
+    sudo: false,
+    cwd: process.cwd(), // Set working directory for pod.log
   },
 ];
 
@@ -193,9 +199,9 @@ const runCommandSequence = (socket, sessionId) => {
       return;
     }
 
-    const { command, args, input, sudo } = commands[index];
+    const { command, args, input, sudo, cwd } = commands[index];
     const fullCommand = sudo ? ['sudo', command, ...args] : [command, ...args];
-    const child = spawn(fullCommand[0], fullCommand.slice(1));
+    const child = spawn(fullCommand[0], fullCommand.slice(1), { cwd });
 
     // Store child process
     activeProcesses.set(sessionId, child);
@@ -224,7 +230,7 @@ const runCommandSequence = (socket, sessionId) => {
       socket.emit('command-output', {
         sessionId,
         type: 'error',
-        data: `Command failed: ${error.message}`,
+        data: `Step ${index + 1} failed: ${error.message}`,
         status: 'error',
       });
       activeProcesses.delete(sessionId);
@@ -237,12 +243,17 @@ const runCommandSequence = (socket, sessionId) => {
         socket.emit('command-output', {
           sessionId,
           type: 'error',
-          data: `Command exited with code ${code}`,
+          data: `Step ${index + 1} failed: Command exited with code ${code}`,
           status: 'error',
         });
         socket.disconnect();
         return;
       }
+      socket.emit('command-output', {
+        sessionId,
+        type: 'stdout',
+        data: `Step ${index + 1} completed successfully.\n`,
+      });
       index++;
       runNextCommand();
     });
@@ -266,7 +277,7 @@ io.on('connection', (socket) => {
     console.log(`Received cancel request for session: ${sessionId}`);
     const child = activeProcesses.get(sessionId);
     if (child) {
-      child.kill('SIGINT'); // Send SIGTERM to terminate gracefully
+      child.kill('SIGINT');
       socket.emit('command-output', {
         sessionId,
         type: 'complete',
@@ -286,10 +297,9 @@ io.on('connection', (socket) => {
 
   socket.on('disconnect', () => {
     console.log('Client disconnected:', socket.id);
-    // Clean up any lingering processes
     const sessionId = [...activeProcesses.keys()].find((id) => {
       const child = activeProcesses.get(id);
-      return child.socketId === socket.id; // Hypothetical; adjust based on how you track socket IDs
+      return child.socketId === socket.id;
     });
     if (sessionId) {
       const child = activeProcesses.get(sessionId);
