@@ -1,1 +1,5 @@
-export const SYMLINKPATH = '/var/run/xandeum-pod'
+const SYMLINKPATH = '/var/run/xandeum-pod'
+
+module.exports = {
+    SYMLINKPATH
+}
