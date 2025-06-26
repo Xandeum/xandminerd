@@ -5,7 +5,7 @@
   "main": "src/index.js",
   "scripts": {
     "start": "pm2 start src/index.js --name xandminerd --watch --ignore-watch=\"node_modules\"",
-    "postinstall": "npm install -g fast-cli"
+    "postinstall": "npm install -g pm2@latest fast-cli"
   },
   "repository": {
     "type": "git",
