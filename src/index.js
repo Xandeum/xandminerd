@@ -53,9 +53,10 @@ app.post('/drive/dedicate', (req, res) => {
 app.get('/network', (req, res) => {
   testNetworkSpeed()
     .then((data) => {
-      res.status(200).json({ data: JSON.parse(data) });
+      res.status(200).json(data);
     })
     .catch((err) => {
+      console.error('Error testing network speed:', err);
       res.status(500).json({ err });
     });
 });
