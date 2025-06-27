@@ -173,9 +173,38 @@ const commands = [
   },
   {
     command: 'bash',
-    args: ['-c', '/usr/bin/pod > pod.log 2>&1 &'],
+    args: ['-c', `
+      SERVICE_FILE="/etc/systemd/system/pod.service"
+      echo "🛠️ Writing $SERVICE_FILE..."
+      sudo tee "$SERVICE_FILE" > /dev/null <<EOF
+[Unit]
+Description=Xandeum Pod System service
+After=network.target
+
+[Service]
+ExecStart=/usr/bin/pod
+Restart=always
+User=root
+Environment=NODE_ENV=production
+Environment=RUST_LOG=info
+StandardOutput=syslog
+StandardError=syslog
+SyslogIdentifier=xandeum-pod
+
+[Install]
+WantedBy=multi-user.target
+EOF
+      echo "Reloading systemd..."
+      sudo systemctl daemon-reload
+      echo "Enabling pod.service..."
+      sudo systemctl enable pod.service
+      echo "Starting pod.service..."
+      sudo systemctl start pod.service
+      echo "pod.service is now running. Check status with:"
+      echo "sudo systemctl status pod.service"
+    `],
     sudo: false,
-    cwd: process.cwd(), // Set working directory for pod.log
+    cwd: process.cwd(),
   },
 ];
 
