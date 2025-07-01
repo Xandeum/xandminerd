@@ -5,7 +5,7 @@
   "main": "src/index.js",
   "scripts": {
     "start": "pm2 start src/index.js --name xandminerd --watch --ignore-watch=\"node_modules\"",
-    "postinstall": "npm install -g fast-cli"
+    "postinstall": "npm install -g pm2@latest fast-cli"
   },
   "repository": {
     "type": "git",
@@ -24,6 +24,7 @@
     "express": "^4.21.2",
     "fast-cli": "^4.0.0",
     "nodemon": "^3.0.1",
+    "pm2": "^6.0.8",
     "socket.io": "^4.8.1",
     "speedtest-net": "^1.6.2",
     "ws": "^8.18.2"
