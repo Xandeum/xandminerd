@@ -3,8 +3,9 @@ const os = require('os');
 const fs = require('fs').promises;
 const path = require('path');
 const { exec } = require('child_process');
+const { spawn } = require('child_process');
 const util = require('util');
-// const speedTest = require('speedtest-net');
+
 const { SYMLINKPATH } = require('./CONSTS');
 const execPromise = util.promisify(exec);
 
@@ -207,77 +208,121 @@ function parseSize(sizeStr) {
     return value * (units[unit] || 1);
 }
 
-//test network speed
-const testNetworkSpeed = async () => {
-
-    // const imageUrl = "https://source.unsplash.com/random?topics=nature";
-    // let startTime, endTime;
-    // let imageSize;
-
-    // try {
-    //     startTime = new Date().getTime();
-
-    //     const response = await axios.get(imageUrl, { responseType: 'arraybuffer' });
-    //     imageSize = response.headers['content-length'];
-    //     console.log(`Image size: ${imageSize / 1024} KB`);
-
-    //     endTime = new Date().getTime();
-
-    //     const timeDuration = (endTime - startTime) / 1000;
-    //     const loadedBits = imageSize * 8;
-
-    //     const speedInBps = (loadedBits / timeDuration).toFixed(2);
-    //     const speedInKbps = (speedInBps / 1024).toFixed(2);
-    //     const speedInMbps = (speedInKbps / 1024).toFixed(2);
-
-    //     console.log(`${speedInBps} bps`);
-    //     console.log(`${speedInKbps} kbps`);
-    //     console.log(`${speedInMbps} Mbps`);
-
-    //     return { speedInBps, speedInKbps, speedInMbps };
-    // } catch (error) {
-    //     console.error(`Error: ${error.message}`);
-    //     return null;
-    // }
-
-    console.log("Testing network speed...");
-
+const runCommand = (command, args) => {
     return new Promise((resolve, reject) => {
-        const command = 'fast --upload --json';
+        const process = spawn(command, args);
+        let stdoutData = '';
+        let stderrData = '';
 
-        exec(command, (error, stdout, stderr) => {
-            if (error) {
-                console.log(`Error executing command: ${error.message}`);
-                reject(`Error executing command: ${error.message}`);
-                return;
+        process.stdout.on('data', (data) => {
+            stdoutData += data.toString();
+        });
+
+        process.stderr.on('data', (data) => {
+            stderrData += data.toString();
+        });
+
+        process.on('close', (code) => {
+            if (code !== 0) {
+                reject(new Error(`Command ${command} exited with code ${code}: ${stderrData}`));
+            } else {
+                resolve(stdoutData);
             }
+        });
 
-            if (stderr) {
-                console.log(`Command stderr: ${stderr}`);
-                reject(`Command stderr: ${stderr}`);
-                return;
-            }
-
-            console.log(`Command stdout: ${stdout}`);
-            resolve(stdout);
+        process.on('error', (error) => {
+            reject(new Error(`Failed to spawn ${command}: ${error.message}`));
         });
     });
+};
 
-    // return new Promise((resolve, reject) => {
-    //     const test = speedTest({ maxTime: 5000 }); 
+// Test network speed
+const testNetworkSpeed = async () => {
 
-    //     test.on('data', (data) => {
-    //         console.log('Speed Test Results:', data);
-    //         resolve(data); // Resolve with the speed test results
-    //     });
+    try {
+        // Step 1: Update apt and install speedtest-cli
+        try {
+            await runCommand('sudo', ['apt', 'update']);
+            await runCommand('sudo', ['apt', 'install', 'speedtest-cli', '-y']);
+            console.log('speedtest-cli installed successfully');
+        } catch (installError) {
+            // Ignore apt's "unstable CLI" warning if installation succeeded
+            if (installError.message.includes('WARNING: apt does not have a stable CLI interface')) {
+                console.log('Ignoring apt CLI warning');
+            } else {
+                return {
+                    error: 'Failed to install speedtest-cli',
+                    details: installError.message
+                };
+            }
+        }
 
-    //     test.on('error', (err) => {
-    //         console.error('Speed Test Error:', err);
-    //         reject(err); // Reject if an error occurs
-    //     });
-    // });
+        console.log('Running speedtest-cli...');
 
-}
+        // Step 2: Run speedtest-cli
+        return new Promise((resolve, reject) => {
+            const speedTest = spawn('speedtest-cli', ['--json']);
+            let stdoutData = '';
+            let stderrData = '';
+
+            speedTest.stdout.on('data', (data) => {
+                stdoutData += data.toString();
+            });
+
+            speedTest.stderr.on('data', (data) => {
+                stderrData += data.toString();
+            });
+
+            speedTest.on('close', (code) => {
+                if (code !== 0) {
+                    return resolve({
+                        error: 'Failed to run speedtest',
+                        details: stderrData || `Process exited with code ${code}`
+                    });
+                }
+
+                // Check if stdoutData is empty or invalid
+                if (!stdoutData || stdoutData.trim() === '') {
+                    return resolve({
+                        error: 'Failed to run speedtest',
+                        details: 'No output received from speedtest-cli'
+                    });
+                }
+
+                try {
+                    const result = JSON.parse(stdoutData);
+                    resolve({
+                        ping: result.ping.toFixed(2) + ' ms',
+                        latency: result?.server?.latency ? result.server.latency.toFixed(2) + ' ms' : 'N/A',
+                        download: (result.download / 1_000_000).toFixed(2) + ' Mbps',
+                        upload: (result.upload / 1_000_000).toFixed(2) + ' Mbps',
+                        server: `${result.server.name} (${result.server.location}, ${result.server.country})`
+                    });
+                } catch (parseError) {
+                    resolve({
+                        error: 'Failed to parse speedtest output',
+                        details: parseError.message,
+                        stdout: stdoutData,
+                        stderr: stderrData
+                    });
+                }
+            });
+
+            speedTest.on('error', (error) => {
+                resolve({
+                    error: 'Failed to spawn speedtest process',
+                    details: error.message
+                });
+            });
+        });
+
+    } catch (err) {
+        return {
+            error: 'Unexpected server error',
+            details: err.message
+        };
+    }
+};
 
 const dedicateSpace = async (size, mount) => {
     try {
