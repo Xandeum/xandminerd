@@ -2,8 +2,10 @@ const express = require('express');
 const { createServer } = require('http');
 const { Server } = require('socket.io'); // Add Socket.IO
 const { Keypair } = require('@solana/web3.js');
-const fs = require('fs');
+const fs = require('fs').promises;
+const fssync = require('fs');
 const path = require('path');
+const util = require('util');
 const { spawn, exec } = require('child_process');
 const { v4: uuidv4 } = require('uuid');
 const cors = require('cors');
@@ -91,10 +93,10 @@ app.post('/keypair/generate', (req, res) => {
 app.get('/keypair', (req, res) => {
   try {
     const filePath = path.join('./keypairs', 'pnode-keypair.json');
-    if (!fs.existsSync(filePath)) {
+    if (!fssync.existsSync(filePath)) {
       return res.status(404).json({ error: 'Keypair file does not exist.' });
     }
-    const keypairJson = JSON.parse(fs.readFileSync(filePath, 'utf-8'));
+    const keypairJson = JSON.parse(fssync.readFileSync(filePath, 'utf-8'));
     res.status(200).json({
       message: 'Public key retrieved successfully.',
       publicKey: keypairJson.publicKey,
@@ -150,34 +152,65 @@ app.post('/pods/install', (req, res) => {
 });
 
 // Command sequence
-const commands = [
+const execPromise = util.promisify(exec);
+
+// Track active processes by sessionId
+const activeProcesses = new Map();
+
+// Command definitions for pod installation
+const podInstallCommands = [
   {
     command: 'apt-get',
-    args: ['install', '-y', 'apt-transport-https', 'ca-certificates'],
+    args: ['install', '-y', 'apt-transport-https', 'ca-certificates', 'curl', 'gnupg'],
     sudo: true,
+    description: 'Install required packages for pod',
   },
   {
     command: 'tee',
     args: ['/etc/apt/sources.list.d/xandeum-pod.list'],
-    input: 'deb [trusted=yes] https://xandeum.github.io/pod-apt-package/ stable main',
+    input: 'deb https://xandeum.github.io/pod-apt-package/ stable main',
     sudo: true,
+    description: 'Add Xandeum pod repository',
+  },
+  {
+    command: 'bash',
+    args: ['-c', 'curl -s https://xandeum.github.io/pod-apt-package/gpgkey | gpg --dearmor | tee /etc/apt/trusted.gpg.d/xandeum-pod.gpg >/dev/null'],
+    sudo: true,
+    description: 'Import Xandeum GPG key',
+    allowFailure: true,
+  },
+  {
+    command: 'bash',
+    args: ['-c', 'grep -v "packagecloud\\.io/ookla/speedtest-cli" /etc/apt/sources.list > /tmp/sources.list && mv /tmp/sources.list /etc/apt/sources.list || true'],
+    sudo: true,
+    description: 'Remove packagecloud.io/ookla/speedtest-cli from sources.list',
+    allowFailure: true,
+  },
+  {
+    command: 'bash',
+    args: ['-c', 'rm -f /etc/apt/sources.list.d/ookla_speedtest-cli.list || true'],
+    sudo: true,
+    description: 'Remove packagecloud.io/ookla/speedtest-cli from sources.list.d',
+    allowFailure: true,
   },
   {
     command: 'apt-get',
     args: ['update'],
     sudo: true,
+    description: 'Update package lists',
+    allowFailure: true,
   },
   {
     command: 'apt-get',
-    args: ['install', '-y', 'pod'],
+    args: ['install', '-y', '--allow-unauthenticated', 'pod'],
     sudo: true,
+    description: 'Install pod package',
+    allowFailure: true,
   },
   {
-    command: 'bash',
-    args: ['-c', `
-      SERVICE_FILE="/etc/systemd/system/pod.service"
-      echo "🛠️ Writing $SERVICE_FILE..."
-      sudo tee "$SERVICE_FILE" > /dev/null <<EOF
+    command: 'tee',
+    args: ['/etc/systemd/system/pod.service'],
+    input: `
 [Unit]
 Description=Xandeum Pod System service
 After=network.target
@@ -194,123 +227,241 @@ SyslogIdentifier=xandeum-pod
 
 [Install]
 WantedBy=multi-user.target
-EOF
-      echo "Reloading systemd..."
-      sudo systemctl daemon-reload
-      echo "Enabling pod.service..."
-      sudo systemctl enable pod.service
-      echo "Starting pod.service..."
-      sudo systemctl start pod.service
-      echo "pod.service is now running. Check status with:"
-      echo "sudo systemctl status pod.service"
-    `],
-    sudo: false,
-    cwd: process.cwd(),
+`,
+    sudo: true,
+    description: 'Create pod.service file',
+  },
+  {
+    command: 'systemctl',
+    args: ['daemon-reload'],
+    sudo: true,
+    description: 'Reload systemd configuration for pod',
+  },
+  {
+    command: 'systemctl',
+    args: ['enable', 'pod.service'],
+    sudo: true,
+    description: 'Enable pod.service',
+  },
+  {
+    command: 'systemctl',
+    args: ['start', 'pod.service'],
+    sudo: true,
+    description: 'Start pod.service',
   },
 ];
 
-// Track active processes by sessionId
-const activeProcesses = new Map();
+// Function to ensure a script is executable
+async function ensureExecutable(scriptPath, socket, sessionId) {
+  try {
+    // Check if the script exists
+    await fs.access(scriptPath, fs.constants.R_OK); // Verify read access
+    socket.emit('command-output', {
+      sessionId,
+      type: 'stdout',
+      data: `Script ${scriptPath} found, setting executable permissions...\n`,
+    });
 
-const runCommandSequence = (socket, sessionId) => {
-  let index = 0;
+    // Set executable permissions
+    await fs.chmod(scriptPath, '755');
+    socket.emit('command-output', {
+      sessionId,
+      type: 'stdout',
+      data: `Set executable permissions for ${scriptPath}\n`,
+    });
+  } catch (error) {
+    const errorMessage = error.code === 'ENOENT'
+      ? `Script ${scriptPath} not found`
+      : `Failed to set permissions for ${scriptPath}: ${error.message}`;
+    socket.emit('command-output', {
+      sessionId,
+      type: 'error',
+      data: errorMessage,
+      status: 'error',
+    });
+    throw new Error(errorMessage);
+  }
+}
 
-  const runNextCommand = () => {
-    if (index >= commands.length) {
-      socket.emit('command-output', {
-        sessionId,
-        type: 'complete',
-        data: 'All commands completed successfully.',
-        status: 'success',
-      });
-      activeProcesses.delete(sessionId);
-      socket.disconnect();
-      return;
-    }
-
-    const { command, args, input, sudo, cwd } = commands[index];
+// Function to execute a single command and stream output via Socket.IO
+async function executeCommand(socket, sessionId, { command, args, input, sudo, cwd, description, allowFailure = false }) {
+  return new Promise((resolve, reject) => {
     const fullCommand = sudo ? ['sudo', command, ...args] : [command, ...args];
-    const child = spawn(fullCommand[0], fullCommand.slice(1), { cwd });
+    const child = spawn(fullCommand[0], fullCommand.slice(1), { cwd, shell: command === 'bash' });
 
-    // Store child process
     activeProcesses.set(sessionId, child);
 
-    // If command requires input
+    socket.emit('command-output', {
+      sessionId,
+      type: 'stdout',
+      data: `Running: ${description} (${sudo ? 'sudo ' : ''}${command} ${args.join(' ')})\n`,
+    });
+
     if (input) {
       child.stdin.write(input);
       child.stdin.end();
     }
 
-    socket.emit('command-output', {
-      sessionId,
-      type: 'stdout',
-      data: `Running: ${sudo ? 'sudo ' : ''}${command} ${args.join(' ')}\n`,
-    });
-
+    let output = '';
     child.stdout.on('data', (data) => {
+      output += data.toString();
       socket.emit('command-output', { sessionId, type: 'stdout', data: data.toString() });
     });
 
     child.stderr.on('data', (data) => {
+      output += data.toString();
       socket.emit('command-output', { sessionId, type: 'stderr', data: data.toString() });
     });
 
     child.on('error', (error) => {
+      activeProcesses.delete(sessionId);
       socket.emit('command-output', {
         sessionId,
         type: 'error',
-        data: `Step ${index + 1} failed: ${error.message}`,
+        data: `Error: ${description} failed: ${error.message}`,
         status: 'error',
       });
-      activeProcesses.delete(sessionId);
-      socket.disconnect();
+      if (allowFailure) {
+        resolve(output); // Continue even if this command fails
+      } else {
+        reject(error);
+      }
     });
 
     child.on('close', (code) => {
       activeProcesses.delete(sessionId);
-      if (code !== 0) {
+      if (code !== 0 && !allowFailure) {
         socket.emit('command-output', {
           sessionId,
           type: 'error',
-          data: `Step ${index + 1} failed: Command exited with code ${code}`,
+          data: `Error: ${description} failed with code ${code}`,
           status: 'error',
         });
-        socket.disconnect();
-        return;
+        reject(new Error(`Command failed with code ${code}`));
+      } else {
+        socket.emit('command-output', {
+          sessionId,
+          type: 'stdout',
+          data: `${description} completed successfully.\n`,
+        });
+        resolve(output);
       }
-      socket.emit('command-output', {
-        sessionId,
-        type: 'stdout',
-        data: `Step ${index + 1} completed successfully.\n`,
-      });
-      index++;
-      runNextCommand();
     });
-  };
+  });
+}
 
-  runNextCommand();
-};
+// Function to run a sequence of commands
+async function runCommandSequence(socket, sessionId, commands) {
+  for (let i = 0; i < commands.length; i++) {
+    try {
+      await executeCommand(socket, sessionId, commands[i]);
+    } catch (error) {
+      if (commands[i].allowFailure) {
+        socket.emit('command-output', {
+          sessionId,
+          type: 'stdout',
+          data: `Continuing despite error in: ${commands[i].description}\n`,
+        });
+        continue;
+      }
+      return; // Stop on non-allowable failure
+    }
+  }
+}
+
+// Function to perform upgrade (xandminerd, pod, xandminer)
+async function performUpgrade(socket, sessionId) {
+  try {
+    // Step 1: Upgrade xandminerd
+    socket.emit('command-output', { sessionId, type: 'stdout', data: 'Upgrading xandminerd...\n' });
+    const xandminerdScript = '/root/projects/xandMinerD/src/scripts/upgrade-xandminerd.sh';
+    await ensureExecutable(xandminerdScript, socket, sessionId);
+    await execPromise(`bash ${xandminerdScript}`);
+    socket.emit('command-output', { sessionId, type: 'stdout', data: 'xandminerd upgrade completed successfully.\n' });
+
+    // Step 2: Install/upgrade pod
+    socket.emit('command-output', { sessionId, type: 'stdout', data: 'Installing/upgrading pod...\n' });
+    await runCommandSequence(socket, sessionId, podInstallCommands);
+    socket.emit('command-output', { sessionId, type: 'stdout', data: 'Pod installation/upgrade completed successfully.\n' });
+
+    // Step 3: Upgrade xandminer
+    socket.emit('command-output', { sessionId, type: 'stdout', data: 'Upgrading xandminer...\n' });
+    const xandminerScript = '/root/projects/xandMinerD/src/scripts/upgrade-xandminer.sh';
+    await ensureExecutable(xandminerScript, socket, sessionId);
+    await execPromise(`bash ${xandminerScript}`);
+
+    // Step 4: Send completion message (before restarting services)
+    socket.emit('command-output', {
+      sessionId,
+      type: 'complete',
+      data: 'Upgrade completed successfully.',
+      status: 'success',
+    });
+
+    // Step 5: Restart xandminerd and pod (deferred)
+    exec('systemctl restart xandminerd.service && systemctl restart pod.service', (error) => {
+      if (error) {
+        console.error('Service restart failed:', error);
+      } else {
+        console.log('xandminerd and pod restarted successfully');
+        // socket.emit('command-output', {
+        //   sessionId,
+        //   type: 'stdout',
+        //   data: 'xandminerd and pod restarted successfully.\n',
+        // });
+      }
+    });
+  } catch (error) {
+    socket.emit('command-output', {
+      sessionId,
+      type: 'error',
+      data: `Upgrade failed: ${error.message}`,
+      status: 'error',
+    });
+  }
+}
+
+// API endpoint for upgrade
+app.post('/api/upgrade', (req, res) => {
+  const sessionId = uuidv4();
+  res.status(200).json({ sessionId, message: 'Upgrade process started' });
+
+  // Find the socket for this session
+  io.sockets.sockets.forEach((socket) => {
+    if (socket.sessionId === sessionId) {
+      performUpgrade(socket, sessionId);
+    }
+  });
+});
+
+// API endpoint to restart xandminer
+app.post('/api/restart-xandminer', async (req, res) => {
+  try {
+    await execPromise('systemctl restart xandminer.service');
+    res.status(200).json({ message: 'Xandminer restart initiated' });
+  } catch (error) {
+    console.error('Restart failed:', error);
+    res.status(500).json({ error: 'Restart failed', details: error.message });
+  }
+});
 
 // Socket.IO connection handling
 io.on('connection', (socket) => {
-  console.log('Client connected:', socket.id);
-
   socket.on('start-command', (data) => {
     const { sessionId } = data;
-    console.log(`Starting command sequence for session: ${sessionId}`);
-    runCommandSequence(socket, sessionId);
+    socket.sessionId = sessionId; // Store sessionId on socket
+    performUpgrade(socket, sessionId);
   });
 
   socket.on('cancel-command', (data) => {
     const { sessionId } = data;
-    console.log(`Received cancel request for session: ${sessionId}`);
     const child = activeProcesses.get(sessionId);
     if (child) {
       child.kill('SIGINT');
       socket.emit('command-output', {
         sessionId,
         type: 'complete',
-        data: 'Command sequence cancelled by user.',
+        data: 'Upgrade sequence cancelled by user.',
         status: 'cancelled',
       });
       activeProcesses.delete(sessionId);
@@ -325,7 +476,6 @@ io.on('connection', (socket) => {
   });
 
   socket.on('disconnect', () => {
-    console.log('Client disconnected:', socket.id);
     const sessionId = [...activeProcesses.keys()].find((id) => {
       const child = activeProcesses.get(id);
       return child.socketId === socket.id;
