@@ -293,8 +293,9 @@ const testNetworkSpeed = async () => {
                     const result = JSON.parse(stdoutData);
                     resolve({
                         ping: result.ping.toFixed(2) + ' ms',
-                        download: (result.download / 125000).toFixed(2) + ' Mbps',
-                        upload: (result.upload / 125000).toFixed(2) + ' Mbps',
+                        latency: result?.server?.latency ? result.server.latency.toFixed(2) + ' ms' : 'N/A',
+                        download: (result.download / 1_000_000).toFixed(2) + ' Mbps',
+                        upload: (result.upload / 1_000_000).toFixed(2) + ' Mbps',
                         server: `${result.server.name} (${result.server.location}, ${result.server.country})`
                     });
                 } catch (parseError) {
