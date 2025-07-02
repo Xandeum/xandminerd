@@ -496,10 +496,10 @@ const getVersions = async () => {
         const podVersionCommand = 'pod --version';
         const podVersionResult = await execPromise(podVersionCommand);
         if (podVersionResult.stderr) {
-            console.error(`Error getting pod version: ${podVersionResult.stderr}`);
-            return { ok: false, error: podVersionResult.stderr };
+            console.error(`Error getting pod version: ${podVersionResult?.stderr}`);
+            return { ok: true, xandminerd: XANDMINERD_VERSION, pod: '-' };
         }
-        let podVersion = podVersionResult.stdout.substring(4).trim();
+        let podVersion = podVersionResult?.stdout?.substring(4)?.trim();
 
         return {
             ok: true,
@@ -507,9 +507,11 @@ const getVersions = async () => {
             pod: 'v' + podVersion
         };
     } catch (error) {
-        console.error('Error while retrieving versions:', error.message);
+        console.error('Error while retrieving versions:', error?.message);
+        if (error?.message?.includes('pod')) {
+            return { ok: true, xandminerd: XANDMINERD_VERSION, pod: '-' };
+        }
         return { ok: false, error: error.message };
-
     }
 };
 
