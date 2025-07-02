@@ -399,7 +399,7 @@ async function performUpgrade(socket, sessionId) {
     });
 
     // Step 5: Restart xandminerd and pod (deferred)
-    exec('systemctl restart xandminerd.service && systemctl restart pod.service', (error) => {
+    exec('systemctl daemon-reload && systemctl restart xandminerd.service && systemctl restart pod.service', (error) => {
       if (error) {
         console.error('Service restart failed:', error);
       } else {
@@ -437,7 +437,7 @@ app.post('/api/upgrade', (req, res) => {
 // API endpoint to restart xandminer
 app.post('/api/restart-xandminer', async (req, res) => {
   try {
-    await execPromise('systemctl restart xandminer.service');
+    await execPromise('systemctl daemon-reload && systemctl restart xandminer.service');
     res.status(200).json({ message: 'Xandminer restart initiated' });
   } catch (error) {
     console.error('Restart failed:', error);
