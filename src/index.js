@@ -374,7 +374,7 @@ async function performUpgrade(socket, sessionId) {
   try {
     // Step 1: Upgrade xandminerd
     socket.emit('command-output', { sessionId, type: 'stdout', data: 'Upgrading xandminerd...\n' });
-    const xandminerdScript = '/root/projects/xandMinerD/src/scripts/upgrade-xandminerd.sh';
+    const xandminerdScript = '/root/xandminerd/src/scripts/upgrade-xandminerd.sh';
     await ensureExecutable(xandminerdScript, socket, sessionId);
     await execPromise(`bash ${xandminerdScript}`);
     socket.emit('command-output', { sessionId, type: 'stdout', data: 'xandminerd upgrade completed successfully.\n' });
@@ -386,7 +386,7 @@ async function performUpgrade(socket, sessionId) {
 
     // Step 3: Upgrade xandminer
     socket.emit('command-output', { sessionId, type: 'stdout', data: 'Upgrading xandminer...\n' });
-    const xandminerScript = '/root/projects/xandMinerD/src/scripts/upgrade-xandminer.sh';
+    const xandminerScript = '/root/xandminerd/src/scripts/upgrade-xandminer.sh';
     await ensureExecutable(xandminerScript, socket, sessionId);
     await execPromise(`bash ${xandminerScript}`);
 
