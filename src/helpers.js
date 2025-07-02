@@ -492,13 +492,22 @@ const getServerInfo = async () => {
 const getVersions = async () => {
 
     try {
+        // run pod --version command
+        const podVersionCommand = 'pod --version';
+        const podVersionResult = await execPromise(podVersionCommand);
+        if (podVersionResult.stderr) {
+            console.error(`Error getting pod version: ${podVersionResult.stderr}`);
+            return { ok: false, error: podVersionResult.stderr };
+        }
+        let podVersion = podVersionResult.stdout.substring(4).trim();
+
         return {
             ok: true,
-            xandminerd: XANDMINERD_VERSION, // Replace with actual version retrieval logic
-            pod: 'v0.3.0' // Replace with actual pod version retrieval logic
+            xandminerd: XANDMINERD_VERSION,
+            pod: 'v' + podVersion
         };
     } catch (error) {
-        console.error('Error retrieving versions:', error.message);
+        console.error('Error while retrieving versions:', error.message);
         return { ok: false, error: error.message };
 
     }
