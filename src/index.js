@@ -9,7 +9,7 @@ const util = require('util');
 const { spawn, exec } = require('child_process');
 const { v4: uuidv4 } = require('uuid');
 const cors = require('cors');
-const { getDiskSpaceInfo, testNetworkSpeed, getServerInfo, dedicateSpace } = require('./helpers');
+const { getDiskSpaceInfo, testNetworkSpeed, getServerInfo, dedicateSpace, getVersions } = require('./helpers');
 const { registerPNode, readPnode } = require('./transactions');
 
 const app = express();
@@ -146,6 +146,23 @@ app.get('/server-ip', (req, res) => {
       res.status(200).json({ ok: true, ...data });
     });
 });
+
+// API endpoint to read versions
+app.get('/versions', (req, res) => {
+  getVersions()
+    .then((data) => {
+      if (data?.ok) {
+        res.status(200).json({ ok: true, data });
+      } else {
+        res.status(500).json({ ok: false, error: data?.error });
+      }
+    })
+    .catch((err) => {
+      console.error('Error retrieving versions:', err);
+      res.status(500).json({ ok: false, error: err.message });
+    });
+});
+
 app.post('/pods/install', (req, res) => {
   const sessionId = uuidv4();
   res.status(200).json({ sessionId, message: 'Command execution started' });
