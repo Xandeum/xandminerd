@@ -6,7 +6,7 @@ const { exec } = require('child_process');
 const { spawn } = require('child_process');
 const util = require('util');
 
-const { SYMLINKPATH } = require('./CONSTS');
+const { SYMLINKPATH, XANDMINERD_VERSION } = require('./CONSTS');
 const execPromise = util.promisify(exec);
 
 const getDiskSpaceInfo = async () => {
@@ -488,4 +488,31 @@ const getServerInfo = async () => {
     }
 }
 
-module.exports = { getDiskSpaceInfo, testNetworkSpeed, dedicateSpace, getServerInfo }
+// function to get the versions of pod and xandminerD
+const getVersions = async () => {
+
+    try {
+        // run pod --version command
+        const podVersionCommand = 'pod --version';
+        const podVersionResult = await execPromise(podVersionCommand);
+        if (podVersionResult.stderr) {
+            console.error(`Error getting pod version: ${podVersionResult?.stderr}`);
+            return { ok: true, xandminerd: XANDMINERD_VERSION, pod: '-' };
+        }
+        let podVersion = podVersionResult?.stdout?.substring(4)?.trim();
+
+        return {
+            ok: true,
+            xandminerd: XANDMINERD_VERSION,
+            pod: 'v' + podVersion
+        };
+    } catch (error) {
+        console.error('Error while retrieving versions:', error?.message);
+        if (error?.message?.includes('pod')) {
+            return { ok: true, xandminerd: XANDMINERD_VERSION, pod: '-' };
+        }
+        return { ok: false, error: error.message };
+    }
+};
+
+module.exports = { getDiskSpaceInfo, testNetworkSpeed, dedicateSpace, getServerInfo, getVersions }

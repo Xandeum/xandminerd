@@ -9,7 +9,7 @@ const util = require('util');
 const { spawn, exec } = require('child_process');
 const { v4: uuidv4 } = require('uuid');
 const cors = require('cors');
-const { getDiskSpaceInfo, testNetworkSpeed, getServerInfo, dedicateSpace } = require('./helpers');
+const { getDiskSpaceInfo, testNetworkSpeed, getServerInfo, dedicateSpace, getVersions } = require('./helpers');
 const { registerPNode, readPnode } = require('./transactions');
 
 const app = express();
@@ -146,6 +146,23 @@ app.get('/server-ip', (req, res) => {
       res.status(200).json({ ok: true, ...data });
     });
 });
+
+// API endpoint to read versions
+app.get('/versions', (req, res) => {
+  getVersions()
+    .then((data) => {
+      if (data?.ok) {
+        res.status(200).json({ ok: true, data });
+      } else {
+        res.status(500).json({ ok: false, error: data?.error });
+      }
+    })
+    .catch((err) => {
+      console.error('Error retrieving versions:', err);
+      res.status(500).json({ ok: false, error: err.message });
+    });
+});
+
 app.post('/pods/install', (req, res) => {
   const sessionId = uuidv4();
   res.status(200).json({ sessionId, message: 'Command execution started' });
@@ -374,7 +391,7 @@ async function performUpgrade(socket, sessionId) {
   try {
     // Step 1: Upgrade xandminerd
     socket.emit('command-output', { sessionId, type: 'stdout', data: 'Upgrading xandminerd...\n' });
-    const xandminerdScript = '/root/xandminerd"/src/scripts/upgrade-xandminerd.sh';
+    const xandminerdScript = '/root/xandminerd/src/scripts/upgrade-xandminerd.sh';
     await ensureExecutable(xandminerdScript, socket, sessionId);
     await execPromise(`bash ${xandminerdScript}`);
     socket.emit('command-output', { sessionId, type: 'stdout', data: 'xandminerd upgrade completed successfully.\n' });
@@ -386,7 +403,7 @@ async function performUpgrade(socket, sessionId) {
 
     // Step 3: Upgrade xandminer
     socket.emit('command-output', { sessionId, type: 'stdout', data: 'Upgrading xandminer...\n' });
-    const xandminerScript = '/root/xandminerd"/src/scripts/upgrade-xandminer.sh';
+    const xandminerScript = '/root/xandminerd/src/scripts/upgrade-xandminer.sh';
     await ensureExecutable(xandminerScript, socket, sessionId);
     await execPromise(`bash ${xandminerScript}`);
 
@@ -399,7 +416,7 @@ async function performUpgrade(socket, sessionId) {
     });
 
     // Step 5: Restart xandminerd and pod (deferred)
-    exec('systemctl restart xandminerd.service && systemctl restart pod.service', (error) => {
+    exec('systemctl daemon-reload && systemctl restart xandminerd.service && systemctl restart pod.service', (error) => {
       if (error) {
         console.error('Service restart failed:', error);
       } else {
@@ -437,7 +454,7 @@ app.post('/api/upgrade', (req, res) => {
 // API endpoint to restart xandminer
 app.post('/api/restart-xandminer', async (req, res) => {
   try {
-    await execPromise('systemctl restart xandminer.service');
+    await execPromise('systemctl daemon-reload && systemctl restart xandminer.service');
     res.status(200).json({ message: 'Xandminer restart initiated' });
   } catch (error) {
     console.error('Restart failed:', error);
