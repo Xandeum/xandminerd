@@ -1,6 +1,7 @@
 
 const os = require('os');
 const fs = require('fs').promises;
+const https = require('https');
 const path = require('path');
 const { exec } = require('child_process');
 const { spawn } = require('child_process');
@@ -464,28 +465,35 @@ const revertFileSize = async (filePath, fileExisted, originalSize) => {
 
 const getServerInfo = async () => {
 
-    try {
+    return new Promise((resolve, reject) => {
         const hostname = os.hostname();
-        const interfaces = os.networkInterfaces();
         let ip = '127.0.0.1'; // Default to localhost
 
-        // Find the first non-internal IPv4 address
-        for (const interfaceName in interfaces) {
-            const iface = interfaces[interfaceName];
-            for (const alias of iface) {
-                if (alias.family === 'IPv4' && !alias.internal) {
-                    ip = alias.address;
-                    break;
+        https.get('https://api.ipify.org?format=json', (resp) => {
+            let data = '';
+
+            // A chunk of data has been received.
+            resp.on('data', (chunk) => {
+                data += chunk;
+            });
+
+            // The whole response has been received.
+            resp.on('end', () => {
+                try {
+                    const ipData = JSON.parse(data);
+                    ip = ipData.ip;
+                    resolve({ ok: true, data: { hostname, ip } });
+                } catch (error) {
+                    console.error('Error parsing IP data:', error.message);
+                    resolve({ ok: false });
                 }
-            }
-        }
+            });
 
-        return { ok: true, data: { hostname, ip } }
-
-    } catch (error) {
-        console.log("error while reading server info >>> ", error);
-        return { ok: false }
-    }
+        }).on('error', (error) => {
+            console.error('Error fetching IP address:', error.message);
+            resolve({ ok: false });
+        });
+    });
 }
 
 // function to get the versions of pod and xandminerD
