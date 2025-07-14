@@ -185,7 +185,7 @@ const podInstallCommands = [
   {
     command: 'tee',
     args: ['/etc/apt/sources.list.d/xandeum-pod.list'],
-    input: 'deb https://xandeum.github.io/pod-apt-package/ stable main',
+    input: 'deb [trusted=yes] https://xandeum.github.io/pod-apt-package/ stable main',
     sudo: true,
     description: 'Add Xandeum pod repository',
   },
