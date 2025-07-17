@@ -67,11 +67,11 @@ app.post('/keypair/generate', (req, res) => {
   try {
     const KEYPAIR_DIR = './keypairs';
     const KEYPAIR_FILE_NAME = 'pnode-keypair.json';
-    if (!fs.existsSync(KEYPAIR_DIR)) {
-      fs.mkdirSync(KEYPAIR_DIR, { recursive: true });
+    if (!fssync.existsSync(KEYPAIR_DIR)) {
+      fssync.mkdirSync(KEYPAIR_DIR, { recursive: true });
     }
     const filePath = path.join(KEYPAIR_DIR, KEYPAIR_FILE_NAME);
-    if (fs.existsSync(filePath)) {
+    if (fssync.existsSync(filePath)) {
       return res.status(400).json({ error: 'Keypair file already exists.' });
     }
     const keypair = Keypair.generate();
@@ -79,7 +79,7 @@ app.post('/keypair/generate', (req, res) => {
       publicKey: keypair.publicKey.toBase58(),
       privateKey: Array.from(keypair.secretKey),
     };
-    fs.writeFileSync(filePath, JSON.stringify(keypairJson, null, 2));
+    fssync.writeFileSync(filePath, JSON.stringify(keypairJson, null, 2));
     res.status(200).json({
       message: 'Keypair generated and saved successfully.',
       publicKey: keypairJson.publicKey,
