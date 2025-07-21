@@ -132,6 +132,7 @@ const getDiskSpaceInfo = async () => {
                                 }
                             } catch (error) {
                                 // File doesn't exist or other error
+                                dedicated = 0; // Ensure dedicated is set to 0 if file doesn't exist
                             }
                         }
 
