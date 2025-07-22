@@ -7,7 +7,7 @@ const { exec } = require('child_process');
 const { spawn } = require('child_process');
 const util = require('util');
 
-const { SYMLINKPATH, XANDMINERD_VERSION } = require('./CONSTS');
+const { XANDMINERD_VERSION } = require('./CONSTS');
 const execPromise = util.promisify(exec);
 
 const getDiskSpaceInfo = async () => {
@@ -336,7 +336,6 @@ const dedicateSpace = async (size, mount) => {
             const sizeInGB = size;
             // const filePath = `${mount}/xandeum-pages`;
             const filePath = path.join(mount, 'xandeum-pages');
-            const symlinkPath = SYMLINKPATH; // Path to the symlink
 
             // Check if the file already exists and store its original size
             let fileExisted = false;
@@ -369,68 +368,8 @@ const dedicateSpace = async (size, mount) => {
                 return { ok: false, error: `Failed to allocate space: ${fallocateError.message}` };
             }
 
-            // Create a symlink to the file at /var/run/xandeum-pod
-            try {
-                // Ensure the directory for the symlink exists
-                const symlinkDir = path.dirname(symlinkPath); // Get the directory path (/var/run)
-                try {
-                    await fs.mkdir(symlinkDir, { recursive: true }); // Create directory if it doesn't exist
-                    console.log(`Symlink directory ensured at ${symlinkDir}`);
-                } catch (mkdirError) {
-                    console.error('Error creating symlink directory:', mkdirError.message);
-                    // Revert the file size
-                    await revertFileSize(filePath, fileExisted, originalSize);
-                    return { ok: false, error: `Failed to create symlink directory: ${mkdirError.message}` };
-                }
+            return { ok: true, path: filePath }; // Return success response
 
-                // Check if the target file exists before creating the symlink
-                try {
-                    await fs.access(filePath); // Verify the target file exists
-                } catch (accessError) {
-                    console.error('Target file does not exist or is inaccessible:', accessError.message);
-                    // Revert the file size
-                    await revertFileSize(filePath, fileExisted, originalSize);
-                    return { ok: false, error: `Target file inaccessible: ${accessError.message}` };
-                }
-
-                // Remove existing symlink if it exists
-                try {
-                    await fs.unlink(symlinkPath);
-                    console.log(`Removed existing symlink at ${symlinkPath}`);
-                } catch (unlinkError) {
-                    if (unlinkError.code !== 'ENOENT') { // Ignore if symlink doesn't exist
-                        console.error('Error removing existing symlink:', unlinkError.message);
-                        // Revert the file size
-                        await revertFileSize(filePath, fileExisted, originalSize);
-                        return { ok: false, error: `Failed to remove existing symlink: ${unlinkError.message}` };
-                    }
-                }
-
-                // Create the symlink
-                try {
-                    await fs.symlink(filePath, symlinkPath);
-                    console.log(`Symlink created at ${symlinkPath} pointing to ${filePath}`);
-                } catch (symlinkError) {
-                    console.error('Error creating symlink:', symlinkError.message);
-                    // Revert the file size before returning the error
-                    await revertFileSize(filePath, fileExisted, originalSize);
-                    // Handle specific symlink errors
-                    if (symlinkError.code === 'EACCES') {
-                        return { ok: false, error: 'Permission denied while creating symlink.' };
-                    } else if (symlinkError.code === 'EPERM') {
-                        return { ok: false, error: 'Operation not permitted while creating symlink.' };
-                    } else {
-                        return { ok: false, error: `Failed to create symlink: ${symlinkError.message}` };
-                    }
-                }
-
-                return { ok: true, path: filePath, symlink: symlinkPath }; // Return success response
-            } catch (symlinkError) {
-                console.error('Unexpected error during symlink creation:', symlinkError.message);
-                // Revert the file size
-                await revertFileSize(filePath, fileExisted, originalSize);
-                return { ok: false, error: `Unexpected error during symlink creation: ${symlinkError.message}` };
-            }
         } else {
             console.error('Unsupported operating system.');
             return { ok: false, error: 'Unsupported operating system.' };
@@ -438,29 +377,6 @@ const dedicateSpace = async (size, mount) => {
     } catch (error) {
         console.error('Error dedicating space:', error.message);
         return { ok: false, error: error.message }; // Return error response
-    }
-};
-
-// Helper function to revert the file size if symlink creation fails
-const revertFileSize = async (filePath, fileExisted, originalSize) => {
-    try {
-        if (!fileExisted) {
-            // If the file didn't exist before, remove it
-            await fs.unlink(filePath);
-            console.log(`Reverted: Removed file ${filePath} as it did not exist before.`);
-        } else {
-            // If the file existed, resize it back to its original size
-            await new Promise((resolve, reject) => {
-                exec(`fallocate -l ${originalSize} ${filePath}`, (err) => {
-                    if (err) return reject(err);
-                    resolve();
-                });
-            });
-            console.log(`Reverted: File ${filePath} resized back to ${originalSize / 1e9}GB.`);
-        }
-    } catch (revertError) {
-        console.error('Error reverting file size:', revertError.message);
-        throw new Error(`Failed to revert file size: ${revertError.message}`);
     }
 };
 
