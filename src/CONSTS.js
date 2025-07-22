@@ -1,5 +1,5 @@
 const SYMLINKPATH = '/var/run/xandeum-pod';
-const XANDMINERD_VERSION = 'v0.3.0';
+const XANDMINERD_VERSION = 'v0.3.1';
 
 module.exports = {
     SYMLINKPATH,
