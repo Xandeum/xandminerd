@@ -67,7 +67,6 @@ const getDiskSpaceInfo = async () => {
             try {
                 const { stdout } = await execPromise(command);
                 const data = JSON.parse(stdout);
-                console.log("drives >>> ", data?.blockdevices);
 
                 // Filter devices to include disk, part, and lvm types
                 const filteredDevices = data.blockdevices.filter(device => {
