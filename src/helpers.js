@@ -67,6 +67,7 @@ const getDiskSpaceInfo = async () => {
             try {
                 const { stdout } = await execPromise(command);
                 const data = JSON.parse(stdout);
+                console.log("drives >>> ", data?.blockdevices);
 
                 // Filter devices to include disk, part, and lvm types
                 const filteredDevices = data.blockdevices.filter(device => {
@@ -78,48 +79,21 @@ const getDiskSpaceInfo = async () => {
                     );
                 });
 
-                // Process devices and children sequentially to handle async file checks
-                if (filteredDevices.length > 0) {
-                    for (const device of filteredDevices) {
-                        // Process children (e.g., LVM volumes under partitions)
-                        if (device?.children?.length > 0) {
-                            for (const child of device.children) {
-                                const sizeInBytes = parseSize(child.size || '0');
-                                // Include lvm children and skip if size is too small
-                                if (sizeInBytes < 10 * 1024 ** 3 && child.type !== 'lvm') continue;
-                                const isMaxFilled = parseFloat(child['fsuse%'] || '0%') >= 94.0;
-
-                                // Check for 'xandeum-pages' file
-                                let dedicated = 0;
-                                if (child?.mountpoints?.length > 0 && child.mountpoints[0]) {
-                                    const mountPoint = child.mountpoints[0];
-                                    const filePath = path.join(mountPoint, 'xandeum-pages');
-                                    try {
-                                        const stats = await fs.stat(filePath);
-                                        if (stats.isFile()) {
-                                            dedicated = stats.size;
-                                        }
-                                    } catch (error) {
-                                        // File doesn't exist or other error
-                                    }
-                                }
-
-                                const drive = {
-                                    name: child?.name,
-                                    used: parseSize(child?.fsused || '0') || 0,
-                                    available: isMaxFilled ? 0 : (parseSize(child?.size || '0') - parseSize(child?.fsused || '0')) || 0,
-                                    capacity: parseSize(child?.size || '0') || 0,
-                                    type: child?.type,
-                                    mount: child?.mountpoints,
-                                    percentage: child?.fsuse,
-                                    dedicated: dedicated
-                                };
-                                drives.push(drive);
-                            }
-                            continue;
+                // Recursive function to process devices and collect only leaf nodes
+                async function processDevice(device, drives) {
+                    // If the device has children, process them instead of adding the parent
+                    if (device?.children?.length > 0) {
+                        for (const child of device.children) {
+                            await processDevice(child, drives); // Recursively process children
                         }
+                    } else {
+                        // This is a leaf node (no children), process it
+                        const sizeInBytes = parseSize(device.size || '0');
+                        const isMaxFilled = parseFloat(device['fsuse%'] || '0%') >= 94.0;
 
-                        // Process parent device (disk, part, or lvm)
+                        // Skip if size is too small and not an lvm type
+                        if (sizeInBytes < 10 * 1024 ** 3 && device.type !== 'lvm') return;
+
                         // Check for 'xandeum-pages' file
                         let dedicated = 0;
                         if (device?.mountpoints?.length > 0 && device.mountpoints[0]) {
@@ -132,20 +106,29 @@ const getDiskSpaceInfo = async () => {
                                 }
                             } catch (error) {
                                 // File doesn't exist or other error
-                                dedicated = 0; // Ensure dedicated is set to 0 if file doesn't exist
+                                dedicated = 0;
                             }
                         }
 
+                        // Add the leaf node to drives
                         const drive = {
                             name: device?.name,
                             used: parseSize(device?.fsused || '0') || 0,
-                            available: (parseSize(device?.size || '0') - parseSize(device?.fsused || '0')) || 0,
+                            available: isMaxFilled ? 0 : (parseSize(device?.size || '0') - parseSize(device?.fsused || '0')) || 0,
                             capacity: parseSize(device?.size || '0') || 0,
                             type: device?.type,
                             mount: device?.mountpoints,
+                            percentage: device?.fsuse,
                             dedicated: dedicated
                         };
                         drives.push(drive);
+                    }
+                }
+
+                // Process all filtered devices
+                if (filteredDevices.length > 0) {
+                    for (const device of filteredDevices) {
+                        await processDevice(device, drives);
                     }
                 } else {
                     console.log('No disks, partitions, or LVM volumes found that meet the criteria.');
