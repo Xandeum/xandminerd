@@ -220,94 +220,6 @@ const runCommand = (command, args) => {
     });
 };
 
-// Test network speed
-const testNetworkSpeed = async () => {
-
-    try {
-        // Step 1: Update apt and install speedtest-cli
-        try {
-            await runCommand('sudo', ['apt', 'update']);
-            await runCommand('sudo', ['apt', 'install', 'speedtest-cli', '-y']);
-            console.log('speedtest-cli installed successfully');
-        } catch (installError) {
-            // Ignore apt's "unstable CLI" warning if installation succeeded
-            if (installError.message.includes('WARNING: apt does not have a stable CLI interface')) {
-                console.log('Ignoring apt CLI warning');
-            } else {
-                return {
-                    error: 'Failed to install speedtest-cli',
-                    details: installError.message
-                };
-            }
-        }
-
-        console.log('Running speedtest-cli...');
-
-        // Step 2: Run speedtest-cli
-        return new Promise((resolve, reject) => {
-            const speedTest = spawn('speedtest-cli', ['--json']);
-            let stdoutData = '';
-            let stderrData = '';
-
-            speedTest.stdout.on('data', (data) => {
-                stdoutData += data.toString();
-            });
-
-            speedTest.stderr.on('data', (data) => {
-                stderrData += data.toString();
-            });
-
-            speedTest.on('close', (code) => {
-                if (code !== 0) {
-                    return resolve({
-                        error: 'Failed to run speedtest',
-                        details: stderrData || `Process exited with code ${code}`
-                    });
-                }
-
-                // Check if stdoutData is empty or invalid
-                if (!stdoutData || stdoutData.trim() === '') {
-                    return resolve({
-                        error: 'Failed to run speedtest',
-                        details: 'No output received from speedtest-cli'
-                    });
-                }
-
-                try {
-                    const result = JSON.parse(stdoutData);
-                    resolve({
-                        ping: result.ping.toFixed(2) + ' ms',
-                        latency: result?.server?.latency ? result.server.latency.toFixed(2) + ' ms' : 'N/A',
-                        download: (result.download / 1_000_000).toFixed(2) + ' Mbps',
-                        upload: (result.upload / 1_000_000).toFixed(2) + ' Mbps',
-                        server: `${result.server.name} (${result.server.location}, ${result.server.country})`
-                    });
-                } catch (parseError) {
-                    resolve({
-                        error: 'Failed to parse speedtest output',
-                        details: parseError.message,
-                        stdout: stdoutData,
-                        stderr: stderrData
-                    });
-                }
-            });
-
-            speedTest.on('error', (error) => {
-                resolve({
-                    error: 'Failed to spawn speedtest process',
-                    details: error.message
-                });
-            });
-        });
-
-    } catch (err) {
-        return {
-            error: 'Unexpected server error',
-            details: err.message
-        };
-    }
-};
-
 const dedicateSpace = async (size, mount) => {
     try {
         const platform = os.platform(); // 'win32', 'darwin', 'linux'
@@ -506,4 +418,4 @@ const getVersions = async () => {
     }
 };
 
-module.exports = { getDiskSpaceInfo, testNetworkSpeed, dedicateSpace, getServerInfo, getVersions }
+module.exports = { getDiskSpaceInfo, dedicateSpace, getServerInfo, getVersions }
