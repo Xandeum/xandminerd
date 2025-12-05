@@ -14,8 +14,10 @@ sudoCheck
 echo "Updating xandminer..."
 if [ -d "/root/xandminer" ]; then
     cd /root/xandminer
-    git stash push -m "Auto-stash before pull" || true
-    git pull
+    git stash --include-untracked || true
+    git fetch origin
+    git checkout main
+    git reset --hard origin/main
     npm install
     npm run build
 else

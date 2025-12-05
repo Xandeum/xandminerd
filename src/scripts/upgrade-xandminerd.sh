@@ -14,8 +14,10 @@ sudoCheck
 echo "Updating xandminerd..."
 if [ -d "/root/xandminerd" ]; then
     cd /root/xandminerd
-    git stash push -m "Auto-stash before pull" || true
-    git pull
+    git stash --include-untracked || true
+    git fetch origin
+    git checkout main
+    git reset --hard origin/main
     npm install
 
     # Copy keypair if needed
