@@ -12,6 +12,43 @@ const cors = require('cors');
 const { getDiskSpaceInfo, testNetworkSpeed, getServerInfo, dedicateSpace, getVersions } = require('./helpers');
 const { registerPNode, readPnode } = require('./transactions');
 
+// --- AUTHENTICATION SETUP ---
+const AUTH_FILE = path.join(__dirname, '../auth.json');
+let API_KEY;
+
+function loadOrGenerateApiKey() {
+  try {
+    if (fssync.existsSync(AUTH_FILE)) {
+      const data = JSON.parse(fssync.readFileSync(AUTH_FILE, 'utf-8'));
+      if (data.apiKey) {
+        API_KEY = data.apiKey;
+        console.log('Loaded API Key from auth.json');
+      }
+    }
+  } catch (err) {
+    console.error('Error loading auth file:', err.message);
+  }
+
+  if (!API_KEY) {
+    API_KEY = uuidv4();
+    try {
+      fssync.writeFileSync(AUTH_FILE, JSON.stringify({ apiKey: API_KEY }, null, 2));
+      console.log('Generated new API Key and saved to auth.json');
+    } catch (err) {
+      console.error('CRITICAL: Failed to save API Key to auth.json:', err.message);
+    }
+  }
+  
+  // Print key to console on startup for user visibility
+  console.log('---------------------------------------------------');
+  console.log(`SECURE API KEY: ${API_KEY}`);
+  console.log('Use this key in the "x-api-key" header for requests.');
+  console.log('---------------------------------------------------');
+}
+
+loadOrGenerateApiKey();
+// ----------------------------
+
 const app = express();
 const server = createServer(app);
 const io = new Server(server, {
@@ -21,8 +58,38 @@ const io = new Server(server, {
   },
 });
 
+// --- SOCKET.IO AUTHENTICATION ---
+io.use((socket, next) => {
+  const token = socket.handshake.auth?.token || socket.handshake.headers?.['x-api-key'];
+  if (token === API_KEY) {
+    next();
+  } else {
+    const err = new Error("not authorized");
+    err.data = { content: "Please retry with a valid API key" }; 
+    next(err);
+  }
+});
+// --------------------------------
+
 app.use(express.json());
 app.use(cors());
+
+// --- EXPRESS AUTHENTICATION MIDDLEWARE ---
+const authMiddleware = (req, res, next) => {
+  const clientKey = req.headers['x-api-key'] || req.query.apiKey;
+  
+  if (!clientKey || clientKey !== API_KEY) {
+    return res.status(401).json({ 
+      ok: false, 
+      error: 'Unauthorized. Please provide a valid "x-api-key" header.' 
+    });
+  }
+  next();
+};
+
+// Apply auth to all routes
+app.use(authMiddleware);
+// -----------------------------------------
 
 const PORT = 4000;
 const HOST = '127.0.0.1';
@@ -507,4 +574,7 @@ io.on('connection', (socket) => {
 
 server.listen(PORT, HOST, () => {
   console.log(`xandminerD running at http://${HOST}:${PORT}`);
+  if(API_KEY) {
+      console.log(`\nIMPORTANT: API Key required for all requests: ${API_KEY}\n`);
+  }
 });
