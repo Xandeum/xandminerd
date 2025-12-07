@@ -1,6 +1,6 @@
 const express = require('express');
 const { createServer } = require('http');
-const { Server } = require('socket.io');
+const { Server } = require('socket.io'); // Add Socket.IO
 const { Keypair } = require('@solana/web3.js');
 const fs = require('fs').promises;
 const fssync = require('fs');
@@ -59,6 +59,10 @@ const corsOptions = {
   credentials: true
 };
 // --------------------------
+
+// --- CONCURRENCY LOCK ---
+let isUpgrading = false; // Prevents overlapping upgrade commands
+// ------------------------
 
 const app = express();
 const server = createServer(app);
@@ -450,7 +454,21 @@ async function runCommandSequence(socket, sessionId, commands) {
   }
 }
 
+// Function to perform upgrade (xandminerd, pod, xandminer)
 async function performUpgrade(socket, sessionId) {
+  // SECURITY FIX: Prevent simultaneous upgrades
+  if (isUpgrading) {
+      socket.emit('command-output', {
+        sessionId,
+        type: 'error',
+        data: 'Error: An upgrade is already in progress. Please wait for it to complete.',
+        status: 'error',
+      });
+      return;
+  }
+
+  isUpgrading = true; // Lock
+
   try {
     // FIX: Dynamic paths instead of hardcoded /root/xandminerd
     const scriptsDir = path.join(__dirname, 'scripts');
@@ -496,6 +514,10 @@ async function performUpgrade(socket, sessionId) {
       data: `Upgrade failed: ${error.message}`,
       status: 'error',
     });
+  } finally {
+      // Release lock regardless of success or failure
+      // Note: If services restart successfully, this process dies and the lock is reset anyway.
+      isUpgrading = false; 
   }
 }
 
