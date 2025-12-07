@@ -1,4 +1,3 @@
-
 const os = require('os');
 const fs = require('fs').promises;
 const https = require('https');
@@ -339,12 +338,8 @@ const dedicateSpace = async (size, mount) => {
 
             // Use fallocate to resize the file
             try {
-                await new Promise((resolve, reject) => {
-                    exec(`fallocate -l ${newSizeInBytes} ${filePath}`, (err) => {
-                        if (err) return reject(err);
-                        resolve();
-                    });
-                });
+                // SECURITY FIX: Replaced exec with runCommand (spawn) to prevent injection
+                await runCommand('fallocate', ['-l', newSizeInBytes.toString(), filePath]);
                 console.log(`File resized to ${newSizeInBytes / 1e9}GB`);
             } catch (fallocateError) {
                 console.error('Error allocating space:', fallocateError.message);
@@ -432,13 +427,13 @@ const revertFileSize = async (filePath, fileExisted, originalSize) => {
             console.log(`Reverted: Removed file ${filePath} as it did not exist before.`);
         } else {
             // If the file existed, resize it back to its original size
-            await new Promise((resolve, reject) => {
-                exec(`fallocate -l ${originalSize} ${filePath}`, (err) => {
-                    if (err) return reject(err);
-                    resolve();
-                });
-            });
-            console.log(`Reverted: File ${filePath} resized back to ${originalSize / 1e9}GB.`);
+            // SECURITY FIX: Replaced exec with runCommand (spawn)
+            try {
+                await runCommand('fallocate', ['-l', originalSize.toString(), filePath]);
+                console.log(`Reverted: File ${filePath} resized back to ${originalSize / 1e9}GB.`);
+            } catch (err) {
+                 throw err;
+            }
         }
     } catch (revertError) {
         console.error('Error reverting file size:', revertError.message);
