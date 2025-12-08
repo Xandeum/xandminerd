@@ -9,7 +9,7 @@ const util = require('util');
 const { spawn, exec } = require('child_process');
 const { v4: uuidv4 } = require('uuid');
 const cors = require('cors');
-const { getDiskSpaceInfo, testNetworkSpeed, getServerInfo, dedicateSpace, getVersions } = require('./helpers');
+const { getDiskSpaceInfo, getServerInfo, dedicateSpace, getVersions } = require('./helpers');
 const { registerPNode, readPnode } = require('./transactions');
 
 const app = express();
@@ -48,17 +48,6 @@ app.post('/drive/dedicate', (req, res) => {
       res.status(500).json({ ok: false, error: 'Internal server error' });
     })
     .catch((err) => {
-      res.status(500).json({ err });
-    });
-});
-
-app.get('/network', (req, res) => {
-  testNetworkSpeed()
-    .then((data) => {
-      res.status(200).json(data);
-    })
-    .catch((err) => {
-      console.error('Error testing network speed:', err);
       res.status(500).json({ err });
     });
 });
