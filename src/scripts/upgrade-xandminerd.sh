@@ -1,4 +1,5 @@
 #!/bin/bash
+set -e # Exit immediately if a command exits with a non-zero status
 
 # Check if running as root
 sudoCheck() {
@@ -10,15 +11,24 @@ sudoCheck() {
 
 sudoCheck
 
+# Resolve the project root directory dynamically (Fix from Issue #4)
+SCRIPT_DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" &> /dev/null && pwd )"
+PROJECT_ROOT="$(dirname "$(dirname "$SCRIPT_DIR")")"
+
 # Update xandminerd
-echo "Updating xandminerd..."
-if [ -d "/root/xandminerd" ]; then
-    cd /root/xandminerd
+echo "Updating xandminerd at $PROJECT_ROOT..."
+if [ -d "$PROJECT_ROOT" ]; then
+    cd "$PROJECT_ROOT"
+    
+    # Git operations
     git stash --include-untracked || true
     git fetch origin
     git checkout main
     git reset --hard origin/main
-    npm install
+    
+    # SECURITY FIX: Use 'npm ci' for deterministic, clean installation
+    # This ensures we match package-lock.json exactly and removes potentially compromised node_modules
+    npm ci
 
     # Copy keypair if needed
     if [ -f "keypairs/pnode-keypair.json" ]; then
@@ -32,7 +42,7 @@ if [ -d "/root/xandminerd" ]; then
         fi
     fi
 else
-    echo "Error: xandminerd directory not found. Please ensure it is installed."
+    echo "Error: xandminerd directory not found at $PROJECT_ROOT."
     exit 1
 fi
 
