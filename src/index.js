@@ -12,17 +12,95 @@ const cors = require('cors');
 const { getDiskSpaceInfo, getServerInfo, dedicateSpace, getVersions } = require('./helpers');
 const { registerPNode, readPnode } = require('./transactions');
 
+// --- AUTHENTICATION SETUP ---
+const AUTH_FILE = path.join(__dirname, '../auth.json');
+let API_KEY;
+
+function loadOrGenerateApiKey() {
+  try {
+    if (fssync.existsSync(AUTH_FILE)) {
+      const data = JSON.parse(fssync.readFileSync(AUTH_FILE, 'utf-8'));
+      if (data.apiKey) {
+        API_KEY = data.apiKey;
+        console.log('Loaded API Key from auth.json');
+      }
+    }
+  } catch (err) {
+    console.error('Error loading auth file:', err.message);
+  }
+
+  if (!API_KEY) {
+    API_KEY = uuidv4();
+    try {
+      fssync.writeFileSync(AUTH_FILE, JSON.stringify({ apiKey: API_KEY }, null, 2));
+      console.log('Generated new API Key and saved to auth.json');
+    } catch (err) {
+      console.error('CRITICAL: Failed to save API Key to auth.json:', err.message);
+    }
+  }
+  
+  // Print key to console on startup for user visibility
+  console.log('---------------------------------------------------');
+  console.log(`SECURE API KEY: ${API_KEY}`);
+  console.log('Use this key in the "x-api-key" header for requests.');
+  console.log('---------------------------------------------------');
+}
+
+loadOrGenerateApiKey();
+// ----------------------------
+
+// --- CORS CONFIGURATION ---
+const ALLOWED_ORIGIN_REGEX = /^http:\/\/(localhost|127\.0\.0\.1)(:\d+)?$/;
+
+const corsOptions = {
+  origin: ALLOWED_ORIGIN_REGEX,
+  methods: ['GET', 'POST'],
+  allowedHeaders: ['content-type', 'x-api-key'],
+  credentials: true
+};
+// --------------------------
+
+// --- CONCURRENCY LOCK ---
+let isUpgrading = false; // Prevents overlapping upgrade commands
+// ------------------------
+
 const app = express();
 const server = createServer(app);
 const io = new Server(server, {
-  cors: {
-    origin: '*',
-    methods: ['GET', 'POST'],
-  },
+  cors: corsOptions,
 });
 
+// --- SOCKET.IO AUTHENTICATION ---
+io.use((socket, next) => {
+  const token = socket.handshake.auth?.token || socket.handshake.headers?.['x-api-key'];
+  if (token === API_KEY) {
+    next();
+  } else {
+    const err = new Error("not authorized");
+    err.data = { content: "Please retry with a valid API key" }; 
+    next(err);
+  }
+});
+// --------------------------------
+
 app.use(express.json());
-app.use(cors());
+app.use(cors(corsOptions));
+
+// --- EXPRESS AUTHENTICATION MIDDLEWARE ---
+const authMiddleware = (req, res, next) => {
+  const clientKey = req.headers['x-api-key'] || req.query.apiKey;
+  
+  if (!clientKey || clientKey !== API_KEY) {
+    return res.status(401).json({ 
+      ok: false, 
+      error: 'Unauthorized. Please provide a valid "x-api-key" header.' 
+    });
+  }
+  next();
+};
+
+app.use(authMiddleware);
+// -----------------------------------------
 
 const PORT = 4000;
 const HOST = '127.0.0.1';
@@ -136,7 +214,6 @@ app.get('/server-ip', (req, res) => {
     });
 });
 
-// API endpoint to read versions
 app.get('/versions', (req, res) => {
   getVersions()
     .then((data) => {
@@ -157,13 +234,9 @@ app.post('/pods/install', (req, res) => {
   res.status(200).json({ sessionId, message: 'Command execution started' });
 });
 
-// Command sequence
 const execPromise = util.promisify(exec);
-
-// Track active processes by sessionId
 const activeProcesses = new Map();
 
-// Command definitions for pod installation
 const podInstallCommands = [
   {
     command: 'apt-get',
@@ -257,18 +330,15 @@ WantedBy=multi-user.target
   },
 ];
 
-// Function to ensure a script is executable
 async function ensureExecutable(scriptPath, socket, sessionId) {
   try {
-    // Check if the script exists
-    await fs.access(scriptPath, fs.constants.R_OK); // Verify read access
+    await fs.access(scriptPath, fs.constants.R_OK); 
     socket.emit('command-output', {
       sessionId,
       type: 'stdout',
       data: `Script ${scriptPath} found, setting executable permissions...\n`,
     });
 
-    // Set executable permissions
     await fs.chmod(scriptPath, '755');
     socket.emit('command-output', {
       sessionId,
@@ -289,7 +359,6 @@ async function ensureExecutable(scriptPath, socket, sessionId) {
   }
 }
 
-// Function to execute a single command and stream output via Socket.IO
 async function executeCommand(socket, sessionId, { command, args, input, sudo, cwd, description, allowFailure = false }) {
   return new Promise((resolve, reject) => {
     const fullCommand = sudo ? ['sudo', command, ...args] : [command, ...args];
@@ -328,7 +397,7 @@ async function executeCommand(socket, sessionId, { command, args, input, sudo, c
         status: 'error',
       });
       if (allowFailure) {
-        resolve(output); // Continue even if this command fails
+        resolve(output); 
       } else {
         reject(error);
       }
@@ -356,7 +425,6 @@ async function executeCommand(socket, sessionId, { command, args, input, sudo, c
   });
 }
 
-// Function to run a sequence of commands
 async function runCommandSequence(socket, sessionId, commands) {
   for (let i = 0; i < commands.length; i++) {
     try {
@@ -370,17 +438,33 @@ async function runCommandSequence(socket, sessionId, commands) {
         });
         continue;
       }
-      return; // Stop on non-allowable failure
+      return;
     }
   }
 }
 
 // Function to perform upgrade (xandminerd, pod, xandminer)
 async function performUpgrade(socket, sessionId) {
+  // SECURITY FIX: Prevent simultaneous upgrades
+  if (isUpgrading) {
+      socket.emit('command-output', {
+        sessionId,
+        type: 'error',
+        data: 'Error: An upgrade is already in progress. Please wait for it to complete.',
+        status: 'error',
+      });
+      return;
+  }
+
+  isUpgrading = true; // Lock
+
   try {
+    // FIX: Dynamic paths instead of hardcoded /root/xandminerd
+    const scriptsDir = path.join(__dirname, 'scripts');
+    
     // Step 1: Upgrade xandminerd
     socket.emit('command-output', { sessionId, type: 'stdout', data: 'Upgrading xandminerd...\n' });
-    const xandminerdScript = '/root/xandminerd/src/scripts/upgrade-xandminerd.sh';
+    const xandminerdScript = path.join(scriptsDir, 'upgrade-xandminerd.sh');
     await ensureExecutable(xandminerdScript, socket, sessionId);
     await execPromise(`bash ${xandminerdScript}`);
     socket.emit('command-output', { sessionId, type: 'stdout', data: 'xandminerd upgrade completed successfully.\n' });
@@ -392,11 +476,11 @@ async function performUpgrade(socket, sessionId) {
 
     // Step 3: Upgrade xandminer
     socket.emit('command-output', { sessionId, type: 'stdout', data: 'Upgrading xandminer...\n' });
-    const xandminerScript = '/root/xandminerd/src/scripts/upgrade-xandminer.sh';
+    const xandminerScript = path.join(scriptsDir, 'upgrade-xandminer.sh');
     await ensureExecutable(xandminerScript, socket, sessionId);
     await execPromise(`bash ${xandminerScript}`);
 
-    // Step 4: Send completion message (before restarting services)
+    // Step 4: Send completion message
     socket.emit('command-output', {
       sessionId,
       type: 'complete',
@@ -410,11 +494,6 @@ async function performUpgrade(socket, sessionId) {
         console.error('Service restart failed:', error);
       } else {
         console.log('xandminerd and pod restarted successfully');
-        // socket.emit('command-output', {
-        //   sessionId,
-        //   type: 'stdout',
-        //   data: 'xandminerd and pod restarted successfully.\n',
-        // });
       }
     });
   } catch (error) {
@@ -424,15 +503,17 @@ async function performUpgrade(socket, sessionId) {
       data: `Upgrade failed: ${error.message}`,
       status: 'error',
     });
+  } finally {
+      // Release lock regardless of success or failure
+      // Note: If services restart successfully, this process dies and the lock is reset anyway.
+      isUpgrading = false; 
   }
 }
 
-// API endpoint for upgrade
 app.post('/api/upgrade', (req, res) => {
   const sessionId = uuidv4();
   res.status(200).json({ sessionId, message: 'Upgrade process started' });
 
-  // Find the socket for this session
   io.sockets.sockets.forEach((socket) => {
     if (socket.sessionId === sessionId) {
       performUpgrade(socket, sessionId);
@@ -440,7 +521,6 @@ app.post('/api/upgrade', (req, res) => {
   });
 });
 
-// API endpoint to restart xandminer
 app.post('/api/restart-xandminer', async (req, res) => {
   try {
     await execPromise('systemctl daemon-reload && systemctl restart xandminer.service');
@@ -451,11 +531,10 @@ app.post('/api/restart-xandminer', async (req, res) => {
   }
 });
 
-// Socket.IO connection handling
 io.on('connection', (socket) => {
   socket.on('start-command', (data) => {
     const { sessionId } = data;
-    socket.sessionId = sessionId; // Store sessionId on socket
+    socket.sessionId = sessionId; 
     performUpgrade(socket, sessionId);
   });
 
@@ -496,4 +575,7 @@ io.on('connection', (socket) => {
 
 server.listen(PORT, HOST, () => {
   console.log(`xandminerD running at http://${HOST}:${PORT}`);
+  if(API_KEY) {
+      console.log(`\nIMPORTANT: API Key required for all requests: ${API_KEY}\n`);
+  }
 });
