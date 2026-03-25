@@ -10,7 +10,7 @@ const { spawn, exec } = require('child_process');
 const { v4: uuidv4 } = require('uuid');
 const cors = require('cors');
 const { getDiskSpaceInfo, getServerInfo, dedicateSpace, getVersions } = require('./helpers');
-const { registerPNode, readPnode } = require('./transactions');
+const { readPnode } = require('./pNodeHelpers');
 
 const app = express();
 const server = createServer(app);
@@ -98,20 +98,7 @@ app.get('/keypair', (req, res) => {
 
 app.post('/pnode', (req, res) => {
   const { pubKey } = req?.body;
-  registerPNode(pubKey)
-    .then((data) => {
-      if (data?.error) {
-        throw new Error(data.error);
-      }
-      res.status(200).json({ ok: true, tx: data?.tx });
-    })
-    .catch((err) => {
-      res.status(500).json({ message: err?.message });
-    });
-});
-
-app.get('/pnode', (req, res) => {
-  readPnode()
+  readPnode(pubKey)
     .then((data) => {
       if (data?.error) {
         res.status(500).json({ ok: false, err: data?.error });
